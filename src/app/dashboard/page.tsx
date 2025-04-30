@@ -6,12 +6,13 @@ import { useQuery } from '@tanstack/react-query';
 import { collection, getDocs, query, where, Timestamp } from 'firebase/firestore';
 import { db } from '@/firebase/config';
 import ContentCard from '@/components/content/ContentCard';
+import ContentListItem from '@/components/content/ContentListItem'; // Import List Item Component
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { PlusCircle, Search, CalendarIcon, X } from 'lucide-react';
+import { PlusCircle, Search, CalendarIcon, X, LayoutGrid, List, FileDown } from 'lucide-react'; // Added LayoutGrid, List, FileDown
 import Link from 'next/link';
 import type { ContentItem } from '@/types/contentItem'; // Import the type
 import { Skeleton } from '@/components/ui/skeleton';
@@ -183,6 +184,7 @@ export default function DashboardPage(): ReactElement {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [filterDate, setFilterDate] = useState<Date | undefined>(undefined); // State for date filter
+  const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards'); // State for view mode
 
   const filteredContentItems = useMemo(() => {
     return contentItems?.filter(item => {
@@ -221,6 +223,16 @@ export default function DashboardPage(): ReactElement {
        return status ? status.label : value;
    };
 
+   // Placeholder function for Google Sheets export
+   const handleExportToSheets = () => {
+       // TODO: Implement Google Sheets export logic
+       // 1. Format filteredContentItems into CSV or suitable format.
+       // 2. Use Google Sheets API (or a library like SheetJS for client-side generation)
+       //    to create or update a sheet.
+       alert('Funcionalidad de exportar a Google Sheets aún no implementada.');
+       console.log("Filtered items for export:", filteredContentItems);
+   };
+
   if (isLoading) return (
      <div className="container mx-auto py-8">
         <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
@@ -232,12 +244,26 @@ export default function DashboardPage(): ReactElement {
             <Skeleton className="h-10 w-[180px]" />
             <Skeleton className="h-10 w-[180px]" />
             <Skeleton className="h-10 w-[240px]" />
+            <Skeleton className="h-10 w-10" /> {/* View toggle skeleton */}
+            <Skeleton className="h-10 w-10" /> {/* View toggle skeleton */}
+             <Skeleton className="h-10 w-32" /> {/* Export button skeleton */}
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <Skeleton className="h-64" />
-            <Skeleton className="h-64" />
-            <Skeleton className="h-64" />
-        </div>
+        {/* Skeleton for Cards view */}
+        {viewMode === 'cards' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <Skeleton className="h-64" />
+                <Skeleton className="h-64" />
+                <Skeleton className="h-64" />
+            </div>
+        )}
+        {/* Skeleton for List view */}
+         {viewMode === 'list' && (
+            <div className="space-y-4">
+                <Skeleton className="h-16 w-full" />
+                <Skeleton className="h-16 w-full" />
+                <Skeleton className="h-16 w-full" />
+            </div>
+        )}
     </div>
   );
 
@@ -281,13 +307,13 @@ export default function DashboardPage(): ReactElement {
       </div>
 
       {/* Filter Bar */}
-      <div className="flex flex-col sm:flex-row gap-4 mb-6 p-4 bg-card rounded-lg border shadow-sm flex-wrap items-center">
+      <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 mb-6 p-4 bg-card rounded-lg border shadow-sm flex-wrap items-center">
          {/* Search Input */}
-         <div className="relative flex-1 min-w-[200px]">
+         <div className="relative flex-grow min-w-[150px] sm:min-w-[200px]">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
                 type="search"
-                placeholder="Buscar por título o descripción..."
+                placeholder="Buscar..."
                 className="pl-8 w-full"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -296,8 +322,8 @@ export default function DashboardPage(): ReactElement {
 
         {/* Category Filter */}
         <Select value={filterCategory} onValueChange={setFilterCategory}>
-          <SelectTrigger className="w-full sm:w-auto sm:min-w-[180px]">
-            <SelectValue placeholder="Filtrar por categoría" />
+          <SelectTrigger className="w-full sm:w-auto sm:min-w-[160px]">
+            <SelectValue placeholder="Categoría" />
           </SelectTrigger>
           <SelectContent>
             {categories.map(category => (
@@ -310,8 +336,8 @@ export default function DashboardPage(): ReactElement {
 
         {/* Status Filter */}
         <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className="w-full sm:w-auto sm:min-w-[180px]">
-            <SelectValue placeholder="Filtrar por estado" />
+          <SelectTrigger className="w-full sm:w-auto sm:min-w-[150px]">
+            <SelectValue placeholder="Estado" />
           </SelectTrigger>
           <SelectContent>
             {statuses.map(status => (
@@ -323,53 +349,100 @@ export default function DashboardPage(): ReactElement {
         </Select>
 
         {/* Date Filter */}
-        <Popover>
-            <PopoverTrigger asChild>
-                <Button
-                    variant={"outline"}
-                    className={cn(
-                        "w-full sm:w-auto sm:min-w-[240px] justify-start text-left font-normal",
-                        !filterDate && "text-muted-foreground"
-                    )}
-                >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {filterDate ? format(filterDate, "PPP", { locale: es }) : <span>Filtrar por fecha</span>}
-                </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                    locale={es}
-                    mode="single"
-                    selected={filterDate}
-                    onSelect={setFilterDate}
-                    initialFocus
-                />
-            </PopoverContent>
-        </Popover>
+         <div className="flex gap-2 items-center w-full sm:w-auto">
+            <Popover>
+                <PopoverTrigger asChild>
+                    <Button
+                        variant={"outline"}
+                        className={cn(
+                            "flex-1 sm:flex-none sm:w-auto sm:min-w-[150px] justify-start text-left font-normal", // Adjusted width
+                            !filterDate && "text-muted-foreground"
+                        )}
+                    >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {filterDate ? format(filterDate, "PPP", { locale: es }) : <span>Fecha</span>}
+                    </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                        locale={es}
+                        mode="single"
+                        selected={filterDate}
+                        onSelect={setFilterDate}
+                        initialFocus
+                    />
+                </PopoverContent>
+            </Popover>
 
-        {/* Clear Date Filter Button */}
-        {filterDate && (
+            {/* Clear Date Filter Button */}
+            {filterDate && (
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setFilterDate(undefined)}
+                    className="h-10 w-10 shrink-0" // Match height
+                    aria-label="Limpiar filtro de fecha"
+                >
+                    <X className="h-4 w-4" />
+                </Button>
+            )}
+        </div>
+
+        {/* View Mode Toggle */}
+        <div className="flex gap-1 ml-auto border p-1 rounded-md">
             <Button
-                variant="ghost"
+                variant={viewMode === 'cards' ? 'secondary' : 'ghost'}
                 size="icon"
-                onClick={() => setFilterDate(undefined)}
-                className="h-10 w-10" // Match height of other buttons/inputs
-                aria-label="Limpiar filtro de fecha"
+                onClick={() => setViewMode('cards')}
+                aria-label="Vista de tarjetas"
             >
-                <X className="h-4 w-4" />
+                <LayoutGrid className="h-4 w-4"/>
             </Button>
-        )}
+             <Button
+                variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+                size="icon"
+                onClick={() => setViewMode('list')}
+                aria-label="Vista de lista"
+             >
+                 <List className="h-4 w-4"/>
+             </Button>
+        </div>
+
+         {/* Export Button */}
+         <Button variant="outline" onClick={handleExportToSheets} className="w-full sm:w-auto">
+            <FileDown className="mr-2 h-4 w-4" /> Exportar
+         </Button>
 
       </div>
 
 
-      {/* Content Grid or No Results Message */}
+      {/* Content Display Area */}
       {filteredContentItems.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredContentItems.map((item) => (
-            <ContentCard key={item.id} contentItem={{...item, statusLabel: getStatusLabel(item.status)}} />
-          ))}
-        </div>
+         <div>
+            {viewMode === 'cards' ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredContentItems.map((item) => (
+                    <ContentCard key={item.id} contentItem={{...item, statusLabel: getStatusLabel(item.status)}} />
+                ))}
+                </div>
+            ) : (
+                <div className="border rounded-lg overflow-hidden">
+                   {/* List Header (Optional) */}
+                   {/* <div className="flex items-center p-4 bg-muted/50 border-b text-sm font-medium">
+                       <div className="w-1/3">Título</div>
+                       <div className="w-1/6">Categoría</div>
+                       <div className="w-1/6">Fecha Sug.</div>
+                       <div className="w-1/6">Estado</div>
+                       <div className="w-1/6 text-right">Acciones</div>
+                   </div> */}
+                   <div className="divide-y">
+                        {filteredContentItems.map((item) => (
+                            <ContentListItem key={item.id} contentItem={{...item, statusLabel: getStatusLabel(item.status)}} />
+                        ))}
+                   </div>
+                </div>
+            )}
+         </div>
       ) : (
          <div className="text-center py-10 text-muted-foreground">
              {searchTerm || filterCategory !== 'all' || filterStatus !== 'all' || filterDate

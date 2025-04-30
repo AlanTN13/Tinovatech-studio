@@ -5,8 +5,8 @@ import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useRouter } from 'next/navigation';
-import { collection, addDoc, updateDoc, doc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { useRouter, useSearchParams } from 'next/navigation'; // Import useSearchParams
+import { collection, addDoc, updateDoc, doc, serverTimestamp, Timestamp, getDoc } from 'firebase/firestore'; // Import getDoc
 import { db } from '@/firebase/config';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,6 +39,7 @@ const statuses = [
     { value: 'approved', label: 'Aprobado' },
     { value: 'published', label: 'Publicado' },
 ] as const; // Use const assertion for stricter type checking
+const statusValues = statuses.map(s => s.value) as [typeof statuses[0]['value'], ...Array<typeof statuses[number]['value']>];
 
 // Translate error messages
 const contentSchema = z.object({
@@ -47,8 +48,9 @@ const contentSchema = z.object({
   fileUrl: z.string().url({ message: "Por favor, introduce una URL válida." }).min(1, { message: "La URL del archivo es obligatoria." }),
   category: z.string().min(1, { message: "La categoría es obligatoria." }),
   suggestedDate: z.date().optional(), // Keep as date for picker, handle conversion on submit/load
-  status: z.enum(statuses.map(s => s.value) as [typeof statuses[0]['value'], ...Array<typeof statuses[number]['value']>] ), // Derive enum from values
+  status: z.enum(statusValues), // Derive enum from values
   comments: z.string().optional(),
+  // createdAt will be handled server-side, not part of the form schema itself
 });
 
 
@@ -57,6 +59,7 @@ type ContentFormValues = z.infer<typeof contentSchema>;
 interface ContentFormProps {
   initialData?: ContentItem; // Make initialData optional
   isEditing?: boolean;
+  duplicateData?: Omit<ContentItem, 'id' | 'createdAt' | 'updatedAt'>; // Data for duplication
 }
 
 // Helper to parse 'YYYY-MM-DD' string into a Date object using UTC
@@ -69,9 +72,6 @@ const parseDateStringUTC = (dateString: string | undefined | null): Date | undef
         const date = parse(dateString, 'yyyy-MM-dd', new Date());
          // Check if parsing was successful and resulted in a valid date
         if (!isNaN(date.getTime())) {
-            // Adjust for local timezone offset ONLY if needed for display consistency,
-            // but saving should ideally use the original UTC date concept.
-            // For the picker, using the parsed date directly is usually fine.
             return date;
         }
     } catch (e) {
@@ -81,57 +81,116 @@ const parseDateStringUTC = (dateString: string | undefined | null): Date | undef
 }
 
 
-const ContentForm: FC<ContentFormProps> = ({ initialData, isEditing = false }) => {
+const ContentForm: FC<ContentFormProps> = ({ initialData, isEditing = false, duplicateData }) => {
   const router = useRouter();
+  const searchParams = useSearchParams(); // Get search params
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [isLoadingDuplicate, setIsLoadingDuplicate] = useState(false);
 
-  const form = useForm<ContentFormValues>({
-    resolver: zodResolver(contentSchema),
-    // Initialize form with potentially parsed date string
-    defaultValues: initialData
-      ? {
+  const defaultValues = initialData
+      ? { // Editing existing item
           title: initialData.title || '',
           description: initialData.description || '',
           fileUrl: initialData.fileUrl || '',
           category: initialData.category || '',
-          suggestedDate: parseDateStringUTC(initialData.suggestedDate), // Parse string to Date or undefined
+          suggestedDate: parseDateStringUTC(initialData.suggestedDate),
           status: initialData.status || 'draft',
           comments: initialData.comments || '',
         }
-      : { // Default values for new form
+      : duplicateData
+      ? { // Duplicating item
+            title: `${duplicateData.title} (Copia)` || '',
+            description: duplicateData.description || '',
+            fileUrl: duplicateData.fileUrl || '',
+            category: duplicateData.category || '',
+            suggestedDate: undefined, // Reset date for duplicate
+            status: 'draft' as const, // Reset status to draft
+            comments: duplicateData.comments || '',
+        }
+      : { // New item from scratch
           title: '',
           description: '',
           fileUrl: '',
           category: '',
           suggestedDate: undefined,
-          status: 'draft',
+          status: 'draft' as const,
           comments: '',
-        },
+        };
+
+
+  const form = useForm<ContentFormValues>({
+    resolver: zodResolver(contentSchema),
+    defaultValues: defaultValues,
   });
+
+  const watchedStatus = form.watch('status'); // Watch the status field
+
+   // Effect to fetch and populate data if duplicating
+   useEffect(() => {
+       const duplicateId = searchParams?.get('duplicateId');
+       if (duplicateId && !initialData && !isEditing) {
+           const fetchDuplicateData = async () => {
+               setIsLoadingDuplicate(true);
+               try {
+                   const docRef = doc(db, 'contentItems', duplicateId);
+                   const docSnap = await getDoc(docRef);
+                   if (docSnap.exists()) {
+                       const data = docSnap.data() as Omit<ContentItem, 'id'>;
+                       form.reset({
+                           title: `${data.title} (Copia)`,
+                           description: data.description || '',
+                           fileUrl: data.fileUrl || '',
+                           category: data.category || '',
+                           suggestedDate: undefined, // Reset date
+                           status: 'draft', // Reset status
+                           comments: data.comments || '', // Keep comments for reference? Or clear? Let's keep them for now.
+                       });
+                   } else {
+                       toast({ title: "Error", description: "Contenido original para duplicar no encontrado.", variant: "destructive" });
+                       router.replace('/dashboard/new'); // Remove query param if not found
+                   }
+               } catch (error) {
+                   console.error("Error fetching duplicate data:", error);
+                   toast({ title: "Error", description: "No se pudo cargar el contenido para duplicar.", variant: "destructive" });
+               } finally {
+                   setIsLoadingDuplicate(false);
+               }
+           };
+           fetchDuplicateData();
+       }
+   // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, [searchParams, initialData, isEditing, form.reset, router, toast]); // Dependencies
 
    // Effect to reset form when initialData changes (e.g., navigating between edit pages)
    useEffect(() => {
-    form.reset(initialData
-      ? {
-          title: initialData.title || '',
-          description: initialData.description || '',
-          fileUrl: initialData.fileUrl || '',
-          category: initialData.category || '',
-          suggestedDate: parseDateStringUTC(initialData.suggestedDate), // Parse string to Date or undefined
-          status: initialData.status || 'draft',
-          comments: initialData.comments || '',
-        }
-      : { // Reset to default empty values if no initial data (for new form)
-            title: '',
-            description: '',
-            fileUrl: '',
-            category: '',
-            suggestedDate: undefined,
-            status: 'draft',
-            comments: '',
-        });
-  }, [initialData, form]);
+      // Only reset if not duplicating and initialData is provided for editing
+      if (!searchParams?.get('duplicateId') && initialData) {
+          form.reset({
+              title: initialData.title || '',
+              description: initialData.description || '',
+              fileUrl: initialData.fileUrl || '',
+              category: initialData.category || '',
+              suggestedDate: parseDateStringUTC(initialData.suggestedDate),
+              status: initialData.status || 'draft',
+              comments: initialData.comments || '',
+          });
+      }
+      // If initialData is null/undefined AND not duplicating, ensure form is empty (for new)
+       else if (!searchParams?.get('duplicateId') && !initialData) {
+            form.reset({
+                title: '',
+                description: '',
+                fileUrl: '',
+                category: '',
+                suggestedDate: undefined,
+                status: 'draft',
+                comments: '',
+            });
+       }
+    // Watch initialData and searchParams presence
+    }, [initialData, searchParams, form.reset]);
+
 
   const onSubmit = async (data: ContentFormValues) => {
     setLoading(true);
@@ -141,29 +200,38 @@ const ContentForm: FC<ContentFormProps> = ({ initialData, isEditing = false }) =
          ? format(data.suggestedDate, 'yyyy-MM-dd') // Format Date to string
          : null;
 
-       const dataToSave: Omit<ContentItem, 'id' | 'statusLabel' | 'createdAt' | 'updatedAt'> & { suggestedDate: string | null, updatedAt: any, createdAt?: any } = {
-        title: data.title,
-        description: data.description || null, // Store empty string as null if desired
-        fileUrl: data.fileUrl,
-        category: data.category,
-        suggestedDate: suggestedDateString, // Save as YYYY-MM-DD string or null
-        status: data.status,
-        comments: data.comments || null, // Store empty string as null if desired
-        updatedAt: serverTimestamp(), // Use Firestore server timestamp
-      };
+       // Base data structure, excluding timestamps initially
+       const dataToSaveBase: Omit<ContentItem, 'id' | 'statusLabel' | 'createdAt' | 'updatedAt'> & { suggestedDate: string | null } = {
+            title: data.title,
+            description: data.description || null,
+            fileUrl: data.fileUrl,
+            category: data.category,
+            suggestedDate: suggestedDateString,
+            status: data.status,
+            comments: data.comments || null,
+       };
 
 
       if (isEditing && initialData?.id) {
+        // Update existing document: add updatedAt
+         const dataToUpdate = {
+           ...dataToSaveBase,
+           updatedAt: serverTimestamp(),
+         };
         const docRef = doc(db, 'contentItems', initialData.id);
-        await updateDoc(docRef, dataToSave);
+        await updateDoc(docRef, dataToUpdate);
         toast({
           title: "Contenido Actualizado",
           description: "El elemento de contenido ha sido actualizado exitosamente.",
         });
       } else {
-         // Add createdAt timestamp only for new documents
-         dataToSave.createdAt = serverTimestamp();
-         await addDoc(collection(db, 'contentItems'), dataToSave);
+         // Create new document: add createdAt and updatedAt
+         const dataToCreate = {
+           ...dataToSaveBase,
+           createdAt: serverTimestamp(), // Add createdAt timestamp only for new documents
+           updatedAt: serverTimestamp(),
+         };
+         await addDoc(collection(db, 'contentItems'), dataToCreate);
         toast({
           title: "Contenido Creado",
           description: "El nuevo elemento de contenido ha sido creado exitosamente.",
@@ -183,10 +251,22 @@ const ContentForm: FC<ContentFormProps> = ({ initialData, isEditing = false }) =
     }
   };
 
+  // Determine if the form is for duplicating
+  const isDuplicating = !!searchParams?.get('duplicateId') && !isEditing;
+  const formTitle = isEditing ? 'Editar Elemento de Contenido' : isDuplicating ? 'Duplicar Elemento de Contenido' : 'Añadir Nuevo Elemento de Contenido';
+  const submitButtonText = loading
+    ? (isEditing ? 'Actualizando...' : 'Creando...')
+    : (isEditing ? 'Actualizar Contenido' : 'Crear Contenido');
+
+  if (isLoadingDuplicate) {
+      return <div className="text-center p-10">Cargando datos para duplicar...</div>;
+  }
+
+
   return (
      <Card className="max-w-2xl mx-auto">
        <CardHeader>
-         <CardTitle>{isEditing ? 'Editar Elemento de Contenido' : 'Añadir Nuevo Elemento de Contenido'}</CardTitle>
+         <CardTitle>{formTitle}</CardTitle>
        </CardHeader>
        <Form {...form}>
          <form onSubmit={form.handleSubmit(onSubmit)}>
@@ -294,7 +374,6 @@ const ContentForm: FC<ContentFormProps> = ({ initialData, isEditing = false }) =
                          selected={field.value} // Pass Date object to Calendar
                          onSelect={field.onChange} // Field onChange expects Date | undefined
                          disabled={(date) => // Optional: disable past dates
-                           // date < new Date() || date < new Date("1900-01-01") // Example: disable past dates
                             loading
                          }
                          initialFocus
@@ -331,23 +410,26 @@ const ContentForm: FC<ContentFormProps> = ({ initialData, isEditing = false }) =
               )}
             />
 
-             <FormField
-               control={form.control}
-               name="comments"
-               render={({ field }) => (
-                 <FormItem>
-                   <FormLabel>Comentarios Internos</FormLabel>
-                   <FormControl>
-                     <Textarea placeholder="Añade notas o comentarios internos" {...field} value={field.value ?? ''} disabled={loading}/>
-                   </FormControl>
-                   <FormMessage />
-                 </FormItem>
-               )}
-             />
+            {/* Conditionally render Comments field */}
+            {(watchedStatus === 'approved' || watchedStatus === 'published') && (
+                <FormField
+                    control={form.control}
+                    name="comments"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Comentarios Internos</FormLabel>
+                        <FormControl>
+                            <Textarea placeholder="Añade notas o comentarios internos" {...field} value={field.value ?? ''} disabled={loading}/>
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                />
+            )}
            </CardContent>
            <CardFooter>
              <Button type="submit" disabled={loading}>
-               {loading ? (isEditing ? 'Actualizando...' : 'Creando...') : (isEditing ? 'Actualizar Contenido' : 'Crear Contenido')}
+                {submitButtonText}
              </Button>
               <Button variant="outline" type="button" onClick={() => router.back()} className="ml-4" disabled={loading}>
                  Cancelar

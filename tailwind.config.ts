@@ -7,6 +7,12 @@ export default {
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
+   // Safelist dynamic classes used for status badges
+  safelist: [
+    'bg-green-100', 'text-green-800', 'dark:bg-green-900', 'dark:text-green-200', 'border-green-300', 'dark:border-green-700', // Published
+    'bg-blue-100', 'text-blue-800', 'dark:bg-blue-900', 'dark:text-blue-200', 'border-blue-300', 'dark:border-blue-700', // Approved
+    'bg-gray-100', 'text-gray-800', 'dark:bg-gray-700', 'dark:text-gray-200', 'border-gray-300', 'dark:border-gray-600', // Draft
+  ],
   theme: {
   	extend: {
   		colors: {
