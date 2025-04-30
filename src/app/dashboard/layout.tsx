@@ -55,10 +55,10 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       <Sidebar>
         <SidebarHeader>
           <div className="flex items-center gap-2 p-2">
-            {/* Tinovatech Placeholder Logo SVG */}
-             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="5" className="w-6 h-6 text-primary">
-                <path d="M20 20 L80 20 L80 80 L20 80 Z" fill="hsl(var(--primary))" stroke="none"/>
-                <text x="50" y="65" fontSize="50" fill="hsl(var(--primary-foreground))" textAnchor="middle" dominantBaseline="middle" fontWeight="bold">T</text>
+            {/* Tinovatech Placeholder Logo SVG - Updated */}
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" className="w-6 h-6">
+                <rect width="100" height="100" rx="15" ry="15" fill="hsl(var(--primary))"/>
+                <text x="50" y="58" fontSize="55" fill="hsl(var(--primary-foreground))" textAnchor="middle" dominantBaseline="middle" fontWeight="bold">T</text>
             </svg>
             <h1 className="text-lg font-semibold">Tinovatech</h1>
           </div>
