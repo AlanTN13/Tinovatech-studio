@@ -43,7 +43,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       // For now, let's just log it, AuthContext might handle redirect or state change
        console.log("Cierre de sesión simulado exitoso");
        // If you want to redirect after mock sign out:
-       // window.location.href = '/'; // Simple redirect, consider Next.js router if staying within app
+       window.location.href = '/'; // Simple redirect, consider Next.js router if staying within app
     } catch (error) {
       console.error("Error en cierre de sesión simulado:", error);
     }
@@ -55,10 +55,12 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       <Sidebar>
         <SidebarHeader>
           <div className="flex items-center gap-2 p-2">
-             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 text-primary">
-                <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm11.378-3.917c-.89-.777-2.366-.777-3.255 0a.75.75 0 01-.988-1.129c1.454-1.272 3.79-1.272 5.244 0a.75.75 0 01-.988 1.13zM10.764 15a.75.75 0 01.75-.75h.01a.75.75 0 110 1.5H11.5a.75.75 0 01-.736-.75zm4.5 0a.75.75 0 01.75-.75h.01a.75.75 0 110 1.5H16a.75.75 0 01-.736-.75z" clipRule="evenodd" />
-             </svg>
-            <h1 className="text-lg font-semibold">Content Canvas</h1>
+            {/* Tinovatech Placeholder Logo SVG */}
+             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="5" className="w-6 h-6 text-primary">
+                <path d="M20 20 L80 20 L80 80 L20 80 Z" fill="hsl(var(--primary))" stroke="none"/>
+                <text x="50" y="65" fontSize="50" fill="hsl(var(--primary-foreground))" textAnchor="middle" dominantBaseline="middle" fontWeight="bold">T</text>
+            </svg>
+            <h1 className="text-lg font-semibold">Tinovatech</h1>
           </div>
         </SidebarHeader>
         <SidebarContent>
@@ -102,7 +104,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       <SidebarInset>
         <header className="sticky top-0 z-10 flex h-14 items-center justify-between gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6 lg:hidden">
             <SidebarTrigger className="md:hidden"/>
-             <h1 className="font-semibold text-lg md:hidden">Content Canvas</h1>
+             <h1 className="font-semibold text-lg md:hidden">Tinovatech</h1>
               {/* Keep sign out button but it now calls the mock signOut */}
               <Button variant="ghost" size="icon" onClick={handleSignOut}>
                 <LogOut className="h-5 w-5" />

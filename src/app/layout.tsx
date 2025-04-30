@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Content Canvas', // Keep Brand Name
+  title: 'Tinovatech Content Canvas', // Updated Brand Name
   description: 'Organiza tus ideas de contenido para redes sociales', // Translated Description
 };
 
