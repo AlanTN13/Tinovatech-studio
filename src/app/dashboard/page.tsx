@@ -9,10 +9,15 @@ import ContentCard from '@/components/content/ContentCard';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { PlusCircle, Search } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { PlusCircle, Search, CalendarIcon, X } from 'lucide-react';
 import Link from 'next/link';
 import type { ContentItem } from '@/types/contentItem'; // Import the type
 import { Skeleton } from '@/components/ui/skeleton';
+import { format, parseISO, startOfDay, isSameDay } from 'date-fns'; // Import date-fns functions
+import { es } from 'date-fns/locale'; // Import Spanish locale
+import { cn } from '@/lib/utils';
 
 // Helper function to safely convert Firestore Timestamp to ISO string or return null
 const timestampToISOString = (timestamp: unknown): string | null => {
@@ -20,14 +25,12 @@ const timestampToISOString = (timestamp: unknown): string | null => {
     return timestamp.toDate().toISOString();
   }
   if (typeof timestamp === 'string') {
-     // Attempt to parse if it's already a string representation of a date
      try {
        return new Date(timestamp).toISOString();
      } catch (e) {
        return null; // Invalid date string
      }
   }
-  // Handle cases where it might be stored as { seconds: number, nanoseconds: number }
   if (typeof timestamp === 'object' && timestamp !== null && 'seconds' in timestamp && 'nanoseconds' in timestamp && typeof timestamp.seconds === 'number' && typeof timestamp.nanoseconds === 'number') {
       try {
           return new Timestamp(timestamp.seconds, timestamp.nanoseconds).toDate().toISOString();
@@ -44,36 +47,22 @@ const formatSuggestedDate = (dateField: unknown): string | null => {
     if (dateField instanceof Timestamp) {
         date = dateField.toDate();
     } else if (typeof dateField === 'string') {
-         // Handle 'YYYY-MM-DD' string directly or try parsing other date strings
         if (/^\d{4}-\d{2}-\d{2}$/.test(dateField)) {
-            // Add time part to avoid potential timezone issues when creating Date object
-            // Using UTC to be consistent
              try {
                 date = new Date(dateField + 'T00:00:00Z');
-                 if (isNaN(date.getTime())) { // Check if date is valid
-                    date = null;
-                 }
-             } catch (e) {
-                 date = null;
-             }
-
+                 if (isNaN(date.getTime())) { date = null; }
+             } catch (e) { date = null; }
         } else {
              try {
                 date = new Date(dateField);
-                if (isNaN(date.getTime())) { // Check if date is valid
-                   date = null;
-                }
-            } catch (e) {
-                date = null;
-            }
+                if (isNaN(date.getTime())) { date = null; }
+            } catch (e) { date = null; }
         }
-
     } else if (dateField instanceof Date){
          date = dateField; // Already a Date object
     }
 
     if (date instanceof Date && !isNaN(date.getTime())) {
-         // Format to YYYY-MM-DD in UTC to avoid timezone shifts affecting the date part
          const year = date.getUTCFullYear();
          const month = (date.getUTCMonth() + 1).toString().padStart(2, '0');
          const day = date.getUTCDate().toString().padStart(2, '0');
@@ -82,8 +71,25 @@ const formatSuggestedDate = (dateField: unknown): string | null => {
     return null;
 }
 
+// Get today's date in YYYY-MM-DD format
+const today = new Date();
+const todayString = format(today, 'yyyy-MM-dd');
+
+
 // Example Content Items
 const exampleContentItems: ContentItem[] = [
+     {
+        id: 'example-4',
+        title: 'Campaña Hoy: Día del Programador',
+        description: '¡Feliz día a todos los desarrolladores! Código limpio y café fuerte.',
+        fileUrl: 'https://picsum.photos/seed/hoy/400/300',
+        category: 'campañas',
+        suggestedDate: todayString, // Use today's date
+        status: 'approved',
+        comments: 'Publicar a las 9 AM.',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+    },
     {
         id: 'example-1',
         title: 'Lanzamiento Nueva Web',
@@ -119,6 +125,7 @@ const exampleContentItems: ContentItem[] = [
         createdAt: new Date('2024-07-28T14:00:00Z').toISOString(),
         updatedAt: new Date('2024-07-28T14:00:00Z').toISOString(),
     },
+
 ];
 
 
@@ -135,18 +142,15 @@ const fetchContentItems = async (): Promise<ContentItem[]> => {
             description: data.description,
             fileUrl: data.fileUrl ?? '',
             category: data.category ?? '',
-            // Safely format suggestedDate to YYYY-MM-DD string or null
             suggestedDate: formatSuggestedDate(data.suggestedDate) ?? undefined,
             status: data.status ?? 'draft',
             comments: data.comments,
-            // Safely convert Timestamps to ISO strings or null
             createdAt: timestampToISOString(data.createdAt),
             updatedAt: timestampToISOString(data.updatedAt),
-         } as ContentItem; // Cast to ContentItem
+         } as ContentItem;
       });
   } catch (error) {
       console.error("Error fetching content from Firestore:", error);
-      // Optionally return empty or throw error, decided to proceed and add examples if empty
   }
 
 
@@ -158,11 +162,11 @@ const fetchContentItems = async (): Promise<ContentItem[]> => {
 
   // Sort by suggestedDate descending (treat null/undefined dates as oldest)
   contentList.sort((a, b) => {
-    const dateA = a.suggestedDate ? new Date(a.suggestedDate).getTime() : 0;
-    const dateB = b.suggestedDate ? new Date(b.suggestedDate).getTime() : 0;
-    if (dateA === 0 && dateB === 0) return 0; // Both dates invalid/missing
-    if (dateA === 0) return 1; // a is older (no date)
-    if (dateB === 0) return -1; // b is older (no date)
+    const dateA = a.suggestedDate ? parseISO(a.suggestedDate).getTime() : 0;
+    const dateB = b.suggestedDate ? parseISO(b.suggestedDate).getTime() : 0;
+    if (dateA === 0 && dateB === 0) return 0;
+    if (dateA === 0) return 1;
+    if (dateB === 0) return -1;
     return dateB - dateA; // Sort by date descending
   });
 
@@ -178,12 +182,7 @@ export default function DashboardPage(): ReactElement {
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
-
-  // Refetch data when component mounts or filters change if desired (optional)
-  // useEffect(() => {
-  //   refetch();
-  // }, [refetch]);
-
+  const [filterDate, setFilterDate] = useState<Date | undefined>(undefined); // State for date filter
 
   const filteredContentItems = useMemo(() => {
     return contentItems?.filter(item => {
@@ -192,17 +191,20 @@ export default function DashboardPage(): ReactElement {
       const searchMatch = searchTerm === '' ||
                           (item.title && item.title.toLowerCase().includes(searchTerm.toLowerCase())) ||
                           (item.description && item.description.toLowerCase().includes(searchTerm.toLowerCase()));
-      return categoryMatch && statusMatch && searchMatch;
+
+      // Date match logic
+      const dateMatch = !filterDate || (item.suggestedDate && isSameDay(parseISO(item.suggestedDate), filterDate));
+
+      return categoryMatch && statusMatch && searchMatch && dateMatch;
     }) ?? [];
-  }, [contentItems, filterCategory, filterStatus, searchTerm]);
+  }, [contentItems, filterCategory, filterStatus, searchTerm, filterDate]);
 
   const categories = useMemo(() => {
-    // Ensure examples are included if contentItems is initially empty
     const allItems = contentItems?.length ? contentItems : exampleContentItems;
     const uniqueCategories = new Set(allItems?.map(item => item.category).filter(Boolean) ?? []);
     const translatedCategories = Array.from(uniqueCategories).map(cat => ({
       value: cat,
-      label: cat.charAt(0).toUpperCase() + cat.slice(1) // Simple capitalization
+      label: cat.charAt(0).toUpperCase() + cat.slice(1)
     }));
     return [{ value: 'all', label: 'Todas las Categorías' }, ...translatedCategories];
   }, [contentItems]);
@@ -216,7 +218,7 @@ export default function DashboardPage(): ReactElement {
 
    const getStatusLabel = (value: ContentItem['status']): string => {
        const status = statuses.find(s => s.value === value);
-       return status ? status.label : value; // Fallback to value if not found
+       return status ? status.label : value;
    };
 
   if (isLoading) return (
@@ -225,10 +227,11 @@ export default function DashboardPage(): ReactElement {
             <Skeleton className="h-10 w-1/3" />
             <Skeleton className="h-10 w-48" />
         </div>
-         <div className="flex flex-col sm:flex-row gap-4 mb-6 p-4 bg-card rounded-lg border shadow-sm">
-            <Skeleton className="h-10 flex-1" />
+         <div className="flex flex-col sm:flex-row gap-4 mb-6 p-4 bg-card rounded-lg border shadow-sm flex-wrap">
+            <Skeleton className="h-10 flex-1 min-w-[200px]" />
             <Skeleton className="h-10 w-[180px]" />
             <Skeleton className="h-10 w-[180px]" />
+            <Skeleton className="h-10 w-[240px]" />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <Skeleton className="h-64" />
@@ -237,8 +240,7 @@ export default function DashboardPage(): ReactElement {
         </div>
     </div>
   );
-  // Display a specific error message if the query fails
-  // Don't show error if it was just Firestore being empty and we fell back to examples
+
   if (error && contentItems?.length === 0) return (
       <div className="container mx-auto py-8 text-center text-destructive">
         <h2 className="text-xl font-semibold mb-2">Error al cargar el contenido</h2>
@@ -248,15 +250,7 @@ export default function DashboardPage(): ReactElement {
       </div>
   );
 
- // Handle case where data is fetched but empty (this case is now handled by showing examples)
- // We modify this to show the "no matching filters" message if applicable,
- // or the generic "no content" message only if examples are somehow missing AND firestore empty.
- // The primary "no content" message is now less likely due to examples.
- if (!isLoading && !error && !filteredContentItems?.length && (searchTerm || filterCategory !== 'all' || filterStatus !== 'all')) {
-    // Show message only when filters are active and result is empty
- } else if (!isLoading && !error && !contentItems?.length) {
-    // This case should ideally not be reached due to example data fallback,
-    // but included as a safeguard if examples were removed or fetchContentItems logic changes.
+ if (!isLoading && !error && !contentItems?.length) {
     return (
         <div className="container mx-auto py-8">
             <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
@@ -286,8 +280,10 @@ export default function DashboardPage(): ReactElement {
          </Link>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4 mb-6 p-4 bg-card rounded-lg border shadow-sm">
-         <div className="relative flex-1">
+      {/* Filter Bar */}
+      <div className="flex flex-col sm:flex-row gap-4 mb-6 p-4 bg-card rounded-lg border shadow-sm flex-wrap items-center">
+         {/* Search Input */}
+         <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
                 type="search"
@@ -297,8 +293,10 @@ export default function DashboardPage(): ReactElement {
                 onChange={(e) => setSearchTerm(e.target.value)}
              />
         </div>
+
+        {/* Category Filter */}
         <Select value={filterCategory} onValueChange={setFilterCategory}>
-          <SelectTrigger className="w-full sm:w-[180px]">
+          <SelectTrigger className="w-full sm:w-auto sm:min-w-[180px]">
             <SelectValue placeholder="Filtrar por categoría" />
           </SelectTrigger>
           <SelectContent>
@@ -310,8 +308,9 @@ export default function DashboardPage(): ReactElement {
           </SelectContent>
         </Select>
 
+        {/* Status Filter */}
         <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className="w-full sm:w-[180px]">
+          <SelectTrigger className="w-full sm:w-auto sm:min-w-[180px]">
             <SelectValue placeholder="Filtrar por estado" />
           </SelectTrigger>
           <SelectContent>
@@ -322,9 +321,49 @@ export default function DashboardPage(): ReactElement {
             ))}
           </SelectContent>
         </Select>
+
+        {/* Date Filter */}
+        <Popover>
+            <PopoverTrigger asChild>
+                <Button
+                    variant={"outline"}
+                    className={cn(
+                        "w-full sm:w-auto sm:min-w-[240px] justify-start text-left font-normal",
+                        !filterDate && "text-muted-foreground"
+                    )}
+                >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {filterDate ? format(filterDate, "PPP", { locale: es }) : <span>Filtrar por fecha</span>}
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                    locale={es}
+                    mode="single"
+                    selected={filterDate}
+                    onSelect={setFilterDate}
+                    initialFocus
+                />
+            </PopoverContent>
+        </Popover>
+
+        {/* Clear Date Filter Button */}
+        {filterDate && (
+            <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setFilterDate(undefined)}
+                className="h-10 w-10" // Match height of other buttons/inputs
+                aria-label="Limpiar filtro de fecha"
+            >
+                <X className="h-4 w-4" />
+            </Button>
+        )}
+
       </div>
 
 
+      {/* Content Grid or No Results Message */}
       {filteredContentItems.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredContentItems.map((item) => (
@@ -333,8 +372,8 @@ export default function DashboardPage(): ReactElement {
         </div>
       ) : (
          <div className="text-center py-10 text-muted-foreground">
-             {searchTerm || filterCategory !== 'all' || filterStatus !== 'all'
-                 ? "No se encontraron elementos de contenido que coincidan con sus criterios de búsqueda o filtros."
+             {searchTerm || filterCategory !== 'all' || filterStatus !== 'all' || filterDate
+                 ? "No se encontraron elementos que coincidan con sus filtros."
                  : "Aún no hay contenido para mostrar." // Fallback if examples failed AND Firestore empty
              }
          </div>
