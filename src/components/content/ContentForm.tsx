@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useRouter } from 'next/navigation';
-import { collection, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db } from '@/firebase/config';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,7 +18,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
-import { format } from 'date-fns';
+import { format, parse } from 'date-fns'; // Import parse
 import { es } from 'date-fns/locale'; // Import Spanish locale for date picker
 import { CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -46,7 +46,7 @@ const contentSchema = z.object({
   description: z.string().optional(),
   fileUrl: z.string().url({ message: "Por favor, introduce una URL válida." }).min(1, { message: "La URL del archivo es obligatoria." }),
   category: z.string().min(1, { message: "La categoría es obligatoria." }),
-  suggestedDate: z.date().optional(),
+  suggestedDate: z.date().optional(), // Keep as date for picker, handle conversion on submit/load
   status: z.enum(statuses.map(s => s.value) as [typeof statuses[0]['value'], ...Array<typeof statuses[number]['value']>] ), // Derive enum from values
   comments: z.string().optional(),
 });
@@ -59,6 +59,28 @@ interface ContentFormProps {
   isEditing?: boolean;
 }
 
+// Helper to parse 'YYYY-MM-DD' string into a Date object using UTC
+const parseDateStringUTC = (dateString: string | undefined | null): Date | undefined => {
+    if (!dateString || !/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+        return undefined;
+    }
+    try {
+        // Parse as YYYY-MM-DD and treat as UTC to avoid timezone shifts affecting the date
+        const date = parse(dateString, 'yyyy-MM-dd', new Date());
+         // Check if parsing was successful and resulted in a valid date
+        if (!isNaN(date.getTime())) {
+            // Adjust for local timezone offset ONLY if needed for display consistency,
+            // but saving should ideally use the original UTC date concept.
+            // For the picker, using the parsed date directly is usually fine.
+            return date;
+        }
+    } catch (e) {
+       console.error("Error parsing date string:", e);
+    }
+    return undefined;
+}
+
+
 const ContentForm: FC<ContentFormProps> = ({ initialData, isEditing = false }) => {
   const router = useRouter();
   const { toast } = useToast();
@@ -66,32 +88,41 @@ const ContentForm: FC<ContentFormProps> = ({ initialData, isEditing = false }) =
 
   const form = useForm<ContentFormValues>({
     resolver: zodResolver(contentSchema),
-    defaultValues: {
-      title: initialData?.title || '',
-      description: initialData?.description || '',
-      fileUrl: initialData?.fileUrl || '',
-      category: initialData?.category || '',
-      // Ensure date is parsed correctly from string if needed
-      suggestedDate: initialData?.suggestedDate ? new Date(initialData.suggestedDate + 'T00:00:00') : undefined, // Add time to avoid timezone issues
-      status: initialData?.status || 'draft',
-      comments: initialData?.comments || '',
-    },
+    // Initialize form with potentially parsed date string
+    defaultValues: initialData
+      ? {
+          title: initialData.title || '',
+          description: initialData.description || '',
+          fileUrl: initialData.fileUrl || '',
+          category: initialData.category || '',
+          suggestedDate: parseDateStringUTC(initialData.suggestedDate), // Parse string to Date or undefined
+          status: initialData.status || 'draft',
+          comments: initialData.comments || '',
+        }
+      : { // Default values for new form
+          title: '',
+          description: '',
+          fileUrl: '',
+          category: '',
+          suggestedDate: undefined,
+          status: 'draft',
+          comments: '',
+        },
   });
 
    // Effect to reset form when initialData changes (e.g., navigating between edit pages)
    useEffect(() => {
-    if (initialData) {
-      form.reset({
-        title: initialData.title,
-        description: initialData.description || '',
-        fileUrl: initialData.fileUrl,
-        category: initialData.category,
-        suggestedDate: initialData.suggestedDate ? new Date(initialData.suggestedDate + 'T00:00:00') : undefined,
-        status: initialData.status,
-        comments: initialData.comments || '',
-      });
-    } else {
-        form.reset({ // Reset to default empty values if no initial data (for new form)
+    form.reset(initialData
+      ? {
+          title: initialData.title || '',
+          description: initialData.description || '',
+          fileUrl: initialData.fileUrl || '',
+          category: initialData.category || '',
+          suggestedDate: parseDateStringUTC(initialData.suggestedDate), // Parse string to Date or undefined
+          status: initialData.status || 'draft',
+          comments: initialData.comments || '',
+        }
+      : { // Reset to default empty values if no initial data (for new form)
             title: '',
             description: '',
             fileUrl: '',
@@ -100,17 +131,27 @@ const ContentForm: FC<ContentFormProps> = ({ initialData, isEditing = false }) =
             status: 'draft',
             comments: '',
         });
-    }
   }, [initialData, form]);
 
   const onSubmit = async (data: ContentFormValues) => {
     setLoading(true);
     try {
-       const dataToSave = {
-        ...data,
-        suggestedDate: data.suggestedDate ? format(data.suggestedDate, 'yyyy-MM-dd') : null, // Store as YYYY-MM-DD string or null
-        updatedAt: serverTimestamp(),
+       // Convert Date object back to 'YYYY-MM-DD' string for Firestore or null
+       const suggestedDateString = data.suggestedDate
+         ? format(data.suggestedDate, 'yyyy-MM-dd') // Format Date to string
+         : null;
+
+       const dataToSave: Omit<ContentItem, 'id' | 'statusLabel' | 'createdAt' | 'updatedAt'> & { suggestedDate: string | null, updatedAt: any, createdAt?: any } = {
+        title: data.title,
+        description: data.description || null, // Store empty string as null if desired
+        fileUrl: data.fileUrl,
+        category: data.category,
+        suggestedDate: suggestedDateString, // Save as YYYY-MM-DD string or null
+        status: data.status,
+        comments: data.comments || null, // Store empty string as null if desired
+        updatedAt: serverTimestamp(), // Use Firestore server timestamp
       };
+
 
       if (isEditing && initialData?.id) {
         const docRef = doc(db, 'contentItems', initialData.id);
@@ -120,17 +161,16 @@ const ContentForm: FC<ContentFormProps> = ({ initialData, isEditing = false }) =
           description: "El elemento de contenido ha sido actualizado exitosamente.",
         });
       } else {
-         await addDoc(collection(db, 'contentItems'), {
-            ...dataToSave,
-            createdAt: serverTimestamp(),
-         });
+         // Add createdAt timestamp only for new documents
+         dataToSave.createdAt = serverTimestamp();
+         await addDoc(collection(db, 'contentItems'), dataToSave);
         toast({
           title: "Contenido Creado",
           description: "El nuevo elemento de contenido ha sido creado exitosamente.",
         });
       }
       router.push('/dashboard'); // Redirect to dashboard after save/update
-      router.refresh(); // Refresh server components
+      // router.refresh(); // Let react-query handle data refresh via invalidation or refetch on window focus
     } catch (error) {
       console.error("Error guardando contenido:", error);
       toast({
@@ -172,7 +212,7 @@ const ContentForm: FC<ContentFormProps> = ({ initialData, isEditing = false }) =
                  <FormItem>
                    <FormLabel>Descripción / Copy</FormLabel>
                    <FormControl>
-                     <Textarea placeholder="Introduce la descripción o copy del post" {...field} disabled={loading} />
+                     <Textarea placeholder="Introduce la descripción o copy del post" {...field} value={field.value ?? ''} disabled={loading} />
                    </FormControl>
                    <FormMessage />
                  </FormItem>
@@ -202,7 +242,7 @@ const ContentForm: FC<ContentFormProps> = ({ initialData, isEditing = false }) =
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Categoría *</FormLabel>
-                   <Select onValueChange={field.onChange} defaultValue={field.value} disabled={loading}>
+                   <Select onValueChange={field.onChange} value={field.value} disabled={loading}>
                     <FormControl>
                       <SelectTrigger>
                          <SelectValue placeholder="Selecciona una categoría" />
@@ -239,7 +279,7 @@ const ContentForm: FC<ContentFormProps> = ({ initialData, isEditing = false }) =
                           disabled={loading}
                          >
                            {field.value ? (
-                             format(field.value, "PPP", { locale: es }) // Use Spanish locale
+                             format(field.value, "PPP", { locale: es }) // Format Date for display
                            ) : (
                              <span>Elige una fecha</span>
                            )}
@@ -251,10 +291,10 @@ const ContentForm: FC<ContentFormProps> = ({ initialData, isEditing = false }) =
                        <Calendar
                          locale={es} // Use Spanish locale in Calendar component
                          mode="single"
-                         selected={field.value}
-                         onSelect={field.onChange}
+                         selected={field.value} // Pass Date object to Calendar
+                         onSelect={field.onChange} // Field onChange expects Date | undefined
                          disabled={(date) => // Optional: disable past dates
-                           // date < new Date() || date < new Date("1900-01-01")
+                           // date < new Date() || date < new Date("1900-01-01") // Example: disable past dates
                             loading
                          }
                          initialFocus
@@ -272,7 +312,7 @@ const ContentForm: FC<ContentFormProps> = ({ initialData, isEditing = false }) =
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Estado *</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={loading}>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={loading}>
                     <FormControl>
                        <SelectTrigger>
                          <SelectValue placeholder="Selecciona un estado" />
@@ -298,7 +338,7 @@ const ContentForm: FC<ContentFormProps> = ({ initialData, isEditing = false }) =
                  <FormItem>
                    <FormLabel>Comentarios Internos</FormLabel>
                    <FormControl>
-                     <Textarea placeholder="Añade notas o comentarios internos" {...field} disabled={loading}/>
+                     <Textarea placeholder="Añade notas o comentarios internos" {...field} value={field.value ?? ''} disabled={loading}/>
                    </FormControl>
                    <FormMessage />
                  </FormItem>

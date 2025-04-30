@@ -5,7 +5,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Calendar, FileText, Tag, MessageSquare, ExternalLink, Edit } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, parseISO, isValid } from 'date-fns'; // Import parseISO and isValid
 import { es } from 'date-fns/locale'; // Import Spanish locale
 import type { ContentItem } from '@/types/contentItem';
 
@@ -16,7 +16,7 @@ interface ContentCardProps {
 const getStatusVariant = (status: ContentItem['status']): 'default' | 'secondary' | 'outline' | 'destructive' | null | undefined => {
   switch (status) {
     case 'published':
-      return 'default'; // Use primary (teal) for published
+      return 'default'; // Use primary (theme default) for published
     case 'approved':
       return 'secondary'; // Use secondary for approved
     case 'draft':
@@ -27,11 +27,15 @@ const getStatusVariant = (status: ContentItem['status']): 'default' | 'secondary
 };
 
 const ContentCard: FC<ContentCardProps> = ({ contentItem }) => {
+  // Parse the suggestedDate string into a Date object
+  const suggestedDateObject = contentItem.suggestedDate ? parseISO(contentItem.suggestedDate) : null;
+  const isValidDate = suggestedDateObject && isValid(suggestedDateObject);
+
   return (
-    <Card className="flex flex-col h-full shadow-md hover:shadow-lg transition-shadow duration-200">
+    <Card className="flex flex-col h-full shadow-md hover:shadow-lg transition-shadow duration-200 border"> {/* Added border */}
       <CardHeader>
         <div className="flex justify-between items-start gap-2">
-             <CardTitle className="text-lg font-semibold flex-1">{contentItem.title}</CardTitle>
+             <CardTitle className="text-lg font-semibold flex-1">{contentItem.title || "Sin Título"}</CardTitle> {/* Fallback for title */}
              <Badge variant={getStatusVariant(contentItem.status)} className="capitalize shrink-0">
                 {contentItem.statusLabel} {/* Use translated status label */}
             </Badge>
@@ -40,7 +44,8 @@ const ContentCard: FC<ContentCardProps> = ({ contentItem }) => {
         {contentItem.category && (
           <div className="flex items-center text-sm text-muted-foreground mt-1">
             <Tag className="mr-1 h-4 w-4" />
-             <span>{contentItem.category.charAt(0).toUpperCase() + contentItem.category.slice(1)}</span> {/* Simple Capitalization */}
+             {/* Ensure category exists before capitalizing */}
+             <span>{contentItem.category ? contentItem.category.charAt(0).toUpperCase() + contentItem.category.slice(1) : 'Sin Categoría'}</span>
           </div>
         )}
       </CardHeader>
@@ -53,21 +58,27 @@ const ContentCard: FC<ContentCardProps> = ({ contentItem }) => {
         )}
          <div className="flex items-center text-sm">
           <ExternalLink className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
-          <a
-            href={contentItem.fileUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-primary hover:underline truncate"
-             title={contentItem.fileUrl} // Add title for full URL on hover
-          >
-            Enlace al archivo {/* Translate Link text */}
-          </a>
+          {contentItem.fileUrl ? (
+             <a
+                href={contentItem.fileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline truncate"
+                title={contentItem.fileUrl} // Add title for full URL on hover
+             >
+                Enlace al archivo {/* Translate Link text */}
+             </a>
+          ) : (
+             <span className="text-muted-foreground italic">No hay enlace</span>
+          )}
+
         </div>
-        {contentItem.suggestedDate && (
+        {/* Check if the parsed date is valid before formatting */}
+        {isValidDate && suggestedDateObject && (
           <div className="flex items-center text-sm text-muted-foreground">
             <Calendar className="mr-2 h-4 w-4" />
             {/* Format date using Spanish locale */}
-            <span>{format(new Date(contentItem.suggestedDate), 'PPP', { locale: es })}</span>
+            <span>{format(suggestedDateObject, 'PPP', { locale: es })}</span>
           </div>
         )}
         {contentItem.comments && (
@@ -83,6 +94,7 @@ const ContentCard: FC<ContentCardProps> = ({ contentItem }) => {
             <Edit className="mr-2 h-4 w-4" /> Editar {/* Translate Button text */}
           </Button>
         </Link>
+        {/* Add Delete button or other actions here later */}
       </CardFooter>
     </Card>
   );
