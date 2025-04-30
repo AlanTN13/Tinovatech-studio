@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Calendar, Tag, Edit, Copy, Lightbulb, Target, Palette, Shapes } from 'lucide-react';
+import { Calendar, Tag, Edit, Copy, Lightbulb, Target, Palette, Shapes, MessageSquare } from 'lucide-react'; // Added MessageSquare import
 import { format, parseISO, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { ContentItem } from '@/types/contentItem';
