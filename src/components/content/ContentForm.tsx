@@ -19,24 +19,38 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import { es } from 'date-fns/locale'; // Import Spanish locale for date picker
 import { CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ContentItem } from '@/types/contentItem';
 
 
 // Define categories - could be fetched from Firestore in the future
-const categories = ["branding", "promociones", "tips", "campañas", "otro"];
-const statuses = ['draft', 'approved', 'published'] as const;
+// Store internal values in English, display translated labels
+const categories = [
+    { value: "branding", label: "Branding" },
+    { value: "promociones", label: "Promociones" },
+    { value: "tips", label: "Tips" },
+    { value: "campañas", label: "Campañas" },
+    { value: "otro", label: "Otro" },
+];
+const statuses = [
+    { value: 'draft', label: 'Borrador' },
+    { value: 'approved', label: 'Aprobado' },
+    { value: 'published', label: 'Publicado' },
+] as const; // Use const assertion for stricter type checking
 
+// Translate error messages
 const contentSchema = z.object({
-  title: z.string().min(1, { message: "Title is required." }),
+  title: z.string().min(1, { message: "El título es obligatorio." }),
   description: z.string().optional(),
-  fileUrl: z.string().url({ message: "Please enter a valid URL." }).min(1, { message: "File URL is required." }),
-  category: z.string().min(1, { message: "Category is required." }),
+  fileUrl: z.string().url({ message: "Por favor, introduce una URL válida." }).min(1, { message: "La URL del archivo es obligatoria." }),
+  category: z.string().min(1, { message: "La categoría es obligatoria." }),
   suggestedDate: z.date().optional(),
-  status: z.enum(statuses),
+  status: z.enum(statuses.map(s => s.value) as [typeof statuses[0]['value'], ...Array<typeof statuses[number]['value']>] ), // Derive enum from values
   comments: z.string().optional(),
 });
+
 
 type ContentFormValues = z.infer<typeof contentSchema>;
 
@@ -57,7 +71,8 @@ const ContentForm: FC<ContentFormProps> = ({ initialData, isEditing = false }) =
       description: initialData?.description || '',
       fileUrl: initialData?.fileUrl || '',
       category: initialData?.category || '',
-      suggestedDate: initialData?.suggestedDate ? new Date(initialData.suggestedDate) : undefined,
+      // Ensure date is parsed correctly from string if needed
+      suggestedDate: initialData?.suggestedDate ? new Date(initialData.suggestedDate + 'T00:00:00') : undefined, // Add time to avoid timezone issues
       status: initialData?.status || 'draft',
       comments: initialData?.comments || '',
     },
@@ -71,7 +86,7 @@ const ContentForm: FC<ContentFormProps> = ({ initialData, isEditing = false }) =
         description: initialData.description || '',
         fileUrl: initialData.fileUrl,
         category: initialData.category,
-        suggestedDate: initialData.suggestedDate ? new Date(initialData.suggestedDate) : undefined,
+        suggestedDate: initialData.suggestedDate ? new Date(initialData.suggestedDate + 'T00:00:00') : undefined,
         status: initialData.status,
         comments: initialData.comments || '',
       });
@@ -93,7 +108,7 @@ const ContentForm: FC<ContentFormProps> = ({ initialData, isEditing = false }) =
     try {
        const dataToSave = {
         ...data,
-        suggestedDate: data.suggestedDate ? data.suggestedDate.toISOString().split('T')[0] : null, // Store as YYYY-MM-DD string or null
+        suggestedDate: data.suggestedDate ? format(data.suggestedDate, 'yyyy-MM-dd') : null, // Store as YYYY-MM-DD string or null
         updatedAt: serverTimestamp(),
       };
 
@@ -101,8 +116,8 @@ const ContentForm: FC<ContentFormProps> = ({ initialData, isEditing = false }) =
         const docRef = doc(db, 'contentItems', initialData.id);
         await updateDoc(docRef, dataToSave);
         toast({
-          title: "Content Updated",
-          description: "Your content item has been successfully updated.",
+          title: "Contenido Actualizado",
+          description: "El elemento de contenido ha sido actualizado exitosamente.",
         });
       } else {
          await addDoc(collection(db, 'contentItems'), {
@@ -110,17 +125,17 @@ const ContentForm: FC<ContentFormProps> = ({ initialData, isEditing = false }) =
             createdAt: serverTimestamp(),
          });
         toast({
-          title: "Content Created",
-          description: "Your new content item has been successfully created.",
+          title: "Contenido Creado",
+          description: "El nuevo elemento de contenido ha sido creado exitosamente.",
         });
       }
       router.push('/dashboard'); // Redirect to dashboard after save/update
       router.refresh(); // Refresh server components
     } catch (error) {
-      console.error("Error saving content:", error);
+      console.error("Error guardando contenido:", error);
       toast({
         title: "Error",
-        description: `Failed to ${isEditing ? 'update' : 'create'} content. Please try again.`,
+        description: `Error al ${isEditing ? 'actualizar' : 'crear'} el contenido. Por favor, inténtalo de nuevo.`,
         variant: "destructive",
       });
     } finally {
@@ -131,7 +146,7 @@ const ContentForm: FC<ContentFormProps> = ({ initialData, isEditing = false }) =
   return (
      <Card className="max-w-2xl mx-auto">
        <CardHeader>
-         <CardTitle>{isEditing ? 'Edit Content Item' : 'Add New Content Item'}</CardTitle>
+         <CardTitle>{isEditing ? 'Editar Elemento de Contenido' : 'Añadir Nuevo Elemento de Contenido'}</CardTitle>
        </CardHeader>
        <Form {...form}>
          <form onSubmit={form.handleSubmit(onSubmit)}>
@@ -141,9 +156,9 @@ const ContentForm: FC<ContentFormProps> = ({ initialData, isEditing = false }) =
                name="title"
                render={({ field }) => (
                  <FormItem>
-                   <FormLabel>Title *</FormLabel>
+                   <FormLabel>Título *</FormLabel>
                    <FormControl>
-                     <Input placeholder="Enter content title" {...field} disabled={loading} />
+                     <Input placeholder="Introduce el título del contenido" {...field} disabled={loading} />
                    </FormControl>
                    <FormMessage />
                  </FormItem>
@@ -155,9 +170,9 @@ const ContentForm: FC<ContentFormProps> = ({ initialData, isEditing = false }) =
                name="description"
                render={({ field }) => (
                  <FormItem>
-                   <FormLabel>Description / Copy</FormLabel>
+                   <FormLabel>Descripción / Copy</FormLabel>
                    <FormControl>
-                     <Textarea placeholder="Enter post description or copy" {...field} disabled={loading} />
+                     <Textarea placeholder="Introduce la descripción o copy del post" {...field} disabled={loading} />
                    </FormControl>
                    <FormMessage />
                  </FormItem>
@@ -169,12 +184,12 @@ const ContentForm: FC<ContentFormProps> = ({ initialData, isEditing = false }) =
                name="fileUrl"
                render={({ field }) => (
                  <FormItem>
-                   <FormLabel>File URL (Google Drive) *</FormLabel>
+                   <FormLabel>URL del Archivo (Google Drive) *</FormLabel>
                    <FormControl>
                      <Input placeholder="https://drive.google.com/..." {...field} type="url" disabled={loading}/>
                    </FormControl>
                    <FormDescription>
-                     Link to the image or video file on Google Drive.
+                     Enlace al archivo de imagen o video en Google Drive.
                    </FormDescription>
                    <FormMessage />
                  </FormItem>
@@ -186,17 +201,17 @@ const ContentForm: FC<ContentFormProps> = ({ initialData, isEditing = false }) =
               name="category"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Category *</FormLabel>
+                  <FormLabel>Categoría *</FormLabel>
                    <Select onValueChange={field.onChange} defaultValue={field.value} disabled={loading}>
                     <FormControl>
                       <SelectTrigger>
-                         <SelectValue placeholder="Select a category" />
+                         <SelectValue placeholder="Selecciona una categoría" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
                       {categories.map((cat) => (
-                        <SelectItem key={cat} value={cat}>
-                           {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                        <SelectItem key={cat.value} value={cat.value}>
+                           {cat.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -211,7 +226,7 @@ const ContentForm: FC<ContentFormProps> = ({ initialData, isEditing = false }) =
                name="suggestedDate"
                render={({ field }) => (
                  <FormItem className="flex flex-col">
-                   <FormLabel>Suggested Publication Date</FormLabel>
+                   <FormLabel>Fecha de Publicación Sugerida</FormLabel>
                    <Popover>
                      <PopoverTrigger asChild>
                        <FormControl>
@@ -224,9 +239,9 @@ const ContentForm: FC<ContentFormProps> = ({ initialData, isEditing = false }) =
                           disabled={loading}
                          >
                            {field.value ? (
-                             format(field.value, "PPP")
+                             format(field.value, "PPP", { locale: es }) // Use Spanish locale
                            ) : (
-                             <span>Pick a date</span>
+                             <span>Elige una fecha</span>
                            )}
                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                          </Button>
@@ -234,6 +249,7 @@ const ContentForm: FC<ContentFormProps> = ({ initialData, isEditing = false }) =
                      </PopoverTrigger>
                      <PopoverContent className="w-auto p-0" align="start">
                        <Calendar
+                         locale={es} // Use Spanish locale in Calendar component
                          mode="single"
                          selected={field.value}
                          onSelect={field.onChange}
@@ -255,17 +271,17 @@ const ContentForm: FC<ContentFormProps> = ({ initialData, isEditing = false }) =
               name="status"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Status *</FormLabel>
+                  <FormLabel>Estado *</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value} disabled={loading}>
                     <FormControl>
                        <SelectTrigger>
-                         <SelectValue placeholder="Select status" />
+                         <SelectValue placeholder="Selecciona un estado" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
                       {statuses.map((stat) => (
-                        <SelectItem key={stat} value={stat}>
-                           {stat.charAt(0).toUpperCase() + stat.slice(1)}
+                        <SelectItem key={stat.value} value={stat.value}>
+                           {stat.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -280,9 +296,9 @@ const ContentForm: FC<ContentFormProps> = ({ initialData, isEditing = false }) =
                name="comments"
                render={({ field }) => (
                  <FormItem>
-                   <FormLabel>Internal Comments</FormLabel>
+                   <FormLabel>Comentarios Internos</FormLabel>
                    <FormControl>
-                     <Textarea placeholder="Add any internal notes or comments" {...field} disabled={loading}/>
+                     <Textarea placeholder="Añade notas o comentarios internos" {...field} disabled={loading}/>
                    </FormControl>
                    <FormMessage />
                  </FormItem>
@@ -291,10 +307,10 @@ const ContentForm: FC<ContentFormProps> = ({ initialData, isEditing = false }) =
            </CardContent>
            <CardFooter>
              <Button type="submit" disabled={loading}>
-               {loading ? (isEditing ? 'Updating...' : 'Creating...') : (isEditing ? 'Update Content' : 'Create Content')}
+               {loading ? (isEditing ? 'Actualizando...' : 'Creando...') : (isEditing ? 'Actualizar Contenido' : 'Crear Contenido')}
              </Button>
               <Button variant="outline" type="button" onClick={() => router.back()} className="ml-4" disabled={loading}>
-                 Cancel
+                 Cancelar
              </Button>
            </CardFooter>
          </form>

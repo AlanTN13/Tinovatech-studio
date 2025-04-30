@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { PlusCircle, Search } from 'lucide-react';
 import Link from 'next/link';
 import type { ContentItem } from '@/types/contentItem'; // Import the type
+import { Skeleton } from '@/components/ui/skeleton';
 
 const fetchContentItems = async (): Promise<ContentItem[]> => {
   const contentCollection = collection(db, 'contentItems');
@@ -53,22 +54,55 @@ export default function DashboardPage(): ReactElement {
   }, [contentItems, filterCategory, filterStatus, searchTerm]);
 
   const categories = useMemo(() => {
+    // Translate categories for display
     const uniqueCategories = new Set(contentItems?.map(item => item.category) ?? []);
-    return ['all', ...Array.from(uniqueCategories)];
+    const translatedCategories = Array.from(uniqueCategories).map(cat => ({
+      value: cat,
+      label: cat.charAt(0).toUpperCase() + cat.slice(1) // Simple capitalization for now
+    }));
+    // Add "All Categories" option
+    return [{ value: 'all', label: 'Todas las Categorías' }, ...translatedCategories];
   }, [contentItems]);
 
-  const statuses = ['all', 'draft', 'approved', 'published'];
+  const statuses = [
+    { value: 'all', label: 'Todos los Estados' },
+    { value: 'draft', label: 'Borrador' },
+    { value: 'approved', label: 'Aprobado' },
+    { value: 'published', label: 'Publicado' },
+  ];
 
-  if (isLoading) return <div>Loading content...</div>;
-  if (error) return <div>Error loading content: {error.message}</div>;
+   const getStatusLabel = (value: string): string => {
+       const status = statuses.find(s => s.value === value);
+       return status ? status.label : value;
+   };
+
+  if (isLoading) return (
+     <div className="container mx-auto py-8">
+        <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+            <Skeleton className="h-10 w-1/3" />
+            <Skeleton className="h-10 w-48" />
+        </div>
+         <div className="flex flex-col sm:flex-row gap-4 mb-6 p-4 bg-card rounded-lg border shadow-sm">
+            <Skeleton className="h-10 flex-1" />
+            <Skeleton className="h-10 w-[180px]" />
+            <Skeleton className="h-10 w-[180px]" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <Skeleton className="h-64" />
+            <Skeleton className="h-64" />
+            <Skeleton className="h-64" />
+        </div>
+    </div>
+  );
+  if (error) return <div>Error al cargar el contenido: {error.message}</div>;
 
   return (
     <div className="container mx-auto py-8">
       <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
-        <h1 className="text-3xl font-bold">Content Dashboard</h1>
+        <h1 className="text-3xl font-bold">Panel de Contenido</h1>
          <Link href="/dashboard/new" passHref>
              <Button>
-                <PlusCircle className="mr-2 h-4 w-4" /> Add New Content
+                <PlusCircle className="mr-2 h-4 w-4" /> Añadir Nuevo Contenido
              </Button>
          </Link>
       </div>
@@ -78,7 +112,7 @@ export default function DashboardPage(): ReactElement {
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
                 type="search"
-                placeholder="Search by title or description..."
+                placeholder="Buscar por título o descripción..."
                 className="pl-8 w-full"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -86,12 +120,12 @@ export default function DashboardPage(): ReactElement {
         </div>
         <Select value={filterCategory} onValueChange={setFilterCategory}>
           <SelectTrigger className="w-full sm:w-[180px]">
-            <SelectValue placeholder="Filter by category" />
+            <SelectValue placeholder="Filtrar por categoría" />
           </SelectTrigger>
           <SelectContent>
             {categories.map(category => (
-              <SelectItem key={category} value={category}>
-                {category === 'all' ? 'All Categories' : category}
+              <SelectItem key={category.value} value={category.value}>
+                {category.label}
               </SelectItem>
             ))}
           </SelectContent>
@@ -99,12 +133,12 @@ export default function DashboardPage(): ReactElement {
 
         <Select value={filterStatus} onValueChange={setFilterStatus}>
           <SelectTrigger className="w-full sm:w-[180px]">
-            <SelectValue placeholder="Filter by status" />
+            <SelectValue placeholder="Filtrar por estado" />
           </SelectTrigger>
           <SelectContent>
             {statuses.map(status => (
-              <SelectItem key={status} value={status}>
-                {status === 'all' ? 'All Statuses' : status.charAt(0).toUpperCase() + status.slice(1)}
+              <SelectItem key={status.value} value={status.value}>
+                {status.label}
               </SelectItem>
             ))}
           </SelectContent>
@@ -115,12 +149,12 @@ export default function DashboardPage(): ReactElement {
       {filteredContentItems.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredContentItems.map((item) => (
-            <ContentCard key={item.id} contentItem={item} />
+            <ContentCard key={item.id} contentItem={{...item, statusLabel: getStatusLabel(item.status)}} />
           ))}
         </div>
       ) : (
         <div className="text-center py-10 text-muted-foreground">
-            No content items found matching your criteria.
+            No se encontraron elementos de contenido que coincidan con sus criterios.
         </div>
       )}
     </div>

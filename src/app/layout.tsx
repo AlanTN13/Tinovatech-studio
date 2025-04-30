@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Content Canvas',
-  description: 'Organize your social media content ideas',
+  title: 'Content Canvas', // Keep Brand Name
+  description: 'Organiza tus ideas de contenido para redes sociales', // Translated Description
 };
 
 export default function RootLayout({
@@ -25,7 +25,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="es"> {/* Set language to Spanish */}
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <Providers> {/* Use the Providers component */}
           {children}

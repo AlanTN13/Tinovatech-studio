@@ -6,10 +6,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Calendar, FileText, Tag, MessageSquare, ExternalLink, Edit } from 'lucide-react';
 import { format } from 'date-fns';
+import { es } from 'date-fns/locale'; // Import Spanish locale
 import type { ContentItem } from '@/types/contentItem';
 
 interface ContentCardProps {
-  contentItem: ContentItem;
+  contentItem: ContentItem & { statusLabel: string }; // Add statusLabel
 }
 
 const getStatusVariant = (status: ContentItem['status']): 'default' | 'secondary' | 'outline' | 'destructive' | null | undefined => {
@@ -32,14 +33,14 @@ const ContentCard: FC<ContentCardProps> = ({ contentItem }) => {
         <div className="flex justify-between items-start gap-2">
              <CardTitle className="text-lg font-semibold flex-1">{contentItem.title}</CardTitle>
              <Badge variant={getStatusVariant(contentItem.status)} className="capitalize shrink-0">
-                {contentItem.status}
+                {contentItem.statusLabel} {/* Use translated status label */}
             </Badge>
         </div>
 
         {contentItem.category && (
           <div className="flex items-center text-sm text-muted-foreground mt-1">
             <Tag className="mr-1 h-4 w-4" />
-            <span>{contentItem.category}</span>
+             <span>{contentItem.category.charAt(0).toUpperCase() + contentItem.category.slice(1)}</span> {/* Simple Capitalization */}
           </div>
         )}
       </CardHeader>
@@ -57,14 +58,16 @@ const ContentCard: FC<ContentCardProps> = ({ contentItem }) => {
             target="_blank"
             rel="noopener noreferrer"
             className="text-primary hover:underline truncate"
+             title={contentItem.fileUrl} // Add title for full URL on hover
           >
-            {contentItem.fileUrl}
+            Enlace al archivo {/* Translate Link text */}
           </a>
         </div>
         {contentItem.suggestedDate && (
           <div className="flex items-center text-sm text-muted-foreground">
             <Calendar className="mr-2 h-4 w-4" />
-            <span>{format(new Date(contentItem.suggestedDate), 'PPP')}</span>
+            {/* Format date using Spanish locale */}
+            <span>{format(new Date(contentItem.suggestedDate), 'PPP', { locale: es })}</span>
           </div>
         )}
         {contentItem.comments && (
@@ -77,7 +80,7 @@ const ContentCard: FC<ContentCardProps> = ({ contentItem }) => {
       <CardFooter className="border-t pt-4">
         <Link href={`/dashboard/edit/${contentItem.id}`} passHref>
           <Button variant="outline" size="sm">
-            <Edit className="mr-2 h-4 w-4" /> Edit
+            <Edit className="mr-2 h-4 w-4" /> Editar {/* Translate Button text */}
           </Button>
         </Link>
       </CardFooter>

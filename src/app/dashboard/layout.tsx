@@ -41,11 +41,11 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       await signOut();
       // Redirect or handle UI changes after mock sign out if needed
       // For now, let's just log it, AuthContext might handle redirect or state change
-       console.log("Mock sign out successful");
+       console.log("Cierre de sesión simulado exitoso");
        // If you want to redirect after mock sign out:
        // window.location.href = '/'; // Simple redirect, consider Next.js router if staying within app
     } catch (error) {
-      console.error("Mock Sign out failed:", error);
+      console.error("Error en cierre de sesión simulado:", error);
     }
   };
 
@@ -65,17 +65,17 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           <SidebarMenu>
             <SidebarMenuItem>
                <Link href="/dashboard" passHref>
-                <SidebarMenuButton>
+                <SidebarMenuButton tooltip="Panel Principal">
                   <LayoutDashboard />
-                  <span>Dashboard</span>
+                  <span>Panel Principal</span>
                 </SidebarMenuButton>
               </Link>
             </SidebarMenuItem>
              <SidebarMenuItem>
                <Link href="/dashboard/new" passHref>
-                  <SidebarMenuButton>
+                  <SidebarMenuButton tooltip="Nuevo Contenido">
                     <PlusCircle />
-                    <span>New Content</span>
+                    <span>Nuevo Contenido</span>
                   </SidebarMenuButton>
               </Link>
             </SidebarMenuItem>
@@ -93,7 +93,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               <span className="text-muted-foreground truncate">{user?.email ?? 'email@example.com'}</span>
             </div>
             {/* Keep sign out button but it now calls the mock signOut */}
-            <Button variant="ghost" size="icon" className="ml-auto" onClick={handleSignOut}>
+            <Button variant="ghost" size="icon" className="ml-auto" onClick={handleSignOut} aria-label="Cerrar sesión">
               <LogOut className="h-4 w-4" />
             </Button>
           </div>
@@ -106,7 +106,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               {/* Keep sign out button but it now calls the mock signOut */}
               <Button variant="ghost" size="icon" onClick={handleSignOut}>
                 <LogOut className="h-5 w-5" />
-                <span className="sr-only">Sign Out</span>
+                <span className="sr-only">Cerrar Sesión</span>
               </Button>
         </header>
         <main className="p-4 sm:p-6">
