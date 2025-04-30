@@ -1,39 +1,51 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import React, { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import React from 'react'; // Removed useEffect
+// Removed useRouter import
+// import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarFooter, SidebarTrigger, SidebarInset } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { LayoutDashboard, LogOut, PlusCircle, Settings } from 'lucide-react';
+import { LayoutDashboard, LogOut, PlusCircle } from 'lucide-react'; // Removed Settings
 import Link from 'next/link';
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
-  const { user, loading, signOut } = useAuth();
-  const router = useRouter();
+  // user will now be the mock user from AuthContext
+  // loading will be false
+  const { user, signOut } = useAuth();
+  // Removed router initialization
+  // const router = useRouter();
 
+  // Removed useEffect for auth check and redirection
+  /*
   useEffect(() => {
     if (!loading && !user) {
       router.push('/'); // Redirect to login if not authenticated
     }
   }, [user, loading, router]);
+  */
 
+  // Removed loading check as loading is always false with bypassed auth
+  /*
   if (loading || !user) {
     // Show loading state or redirect happens
     // You can render a loading spinner here, e.g., <LoadingSpinner />
     return <div>Loading authentication state...</div>;
   }
-
+  */
 
   const handleSignOut = async () => {
     try {
       await signOut();
-      router.push('/'); // Redirect to home/login page after sign out
+      // Redirect or handle UI changes after mock sign out if needed
+      // For now, let's just log it, AuthContext might handle redirect or state change
+       console.log("Mock sign out successful");
+       // If you want to redirect after mock sign out:
+       // window.location.href = '/'; // Simple redirect, consider Next.js router if staying within app
     } catch (error) {
-      console.error("Sign out failed:", error);
-      // Handle sign out error (e.g., show a toast notification)
+      console.error("Mock Sign out failed:", error);
     }
   };
 
@@ -67,26 +79,20 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                   </SidebarMenuButton>
               </Link>
             </SidebarMenuItem>
-             {/* Add more navigation items here if needed */}
-              {/* <SidebarMenuItem>
-              <SidebarMenuButton>
-                <Settings />
-                <span>Settings</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem> */}
           </SidebarMenu>
         </SidebarContent>
         <SidebarFooter>
           <div className="flex items-center gap-2 p-2 border-t">
             <Avatar className="h-8 w-8">
-              {/* Add user avatar image if available */}
-              {/* <AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" /> */}
-              <AvatarFallback>{user.email ? user.email[0].toUpperCase() : 'U'}</AvatarFallback>
+              {/* Display mock user info */}
+              <AvatarFallback>{user?.email ? user.email[0].toUpperCase() : 'U'}</AvatarFallback>
             </Avatar>
             <div className="flex flex-col text-sm">
-              <span className="font-medium">Ileana</span>
-              <span className="text-muted-foreground truncate">{user.email}</span>
+              {/* Display mock user info */}
+              <span className="font-medium">{user?.displayName ?? 'Ileana'}</span>
+              <span className="text-muted-foreground truncate">{user?.email ?? 'email@example.com'}</span>
             </div>
+            {/* Keep sign out button but it now calls the mock signOut */}
             <Button variant="ghost" size="icon" className="ml-auto" onClick={handleSignOut}>
               <LogOut className="h-4 w-4" />
             </Button>
@@ -97,6 +103,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         <header className="sticky top-0 z-10 flex h-14 items-center justify-between gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6 lg:hidden">
             <SidebarTrigger className="md:hidden"/>
              <h1 className="font-semibold text-lg md:hidden">Content Canvas</h1>
+              {/* Keep sign out button but it now calls the mock signOut */}
               <Button variant="ghost" size="icon" onClick={handleSignOut}>
                 <LogOut className="h-5 w-5" />
                 <span className="sr-only">Sign Out</span>

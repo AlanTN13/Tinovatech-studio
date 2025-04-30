@@ -3,29 +3,25 @@
 import type { ReactElement } from 'react';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/context/AuthContext';
-import LoginPage from '@/components/auth/LoginPage';
+// Removed useAuth import as it's no longer needed for redirection logic here
+// import { useAuth } from '@/context/AuthContext';
+// Removed LoginPage import as it's not rendered anymore
+// import LoginPage from '@/components/auth/LoginPage';
 
-export default function HomePage(): ReactElement {
-  const { user, loading } = useAuth();
+export default function HomePage(): ReactElement | null {
+  // Removed user and loading state from useAuth
+  // const { user, loading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading && user) {
-      router.push('/dashboard');
-    }
-  }, [user, loading, router]);
+    // Redirect immediately to the dashboard
+    router.push('/dashboard');
+    // Removed dependency array as redirection is now unconditional
+  }, [router]);
 
-  if (loading) {
-    // You can return a loading spinner here
-    return <div>Loading...</div>;
-  }
-
-  if (!user) {
-    return <LoginPage />;
-  }
-
-  // User is authenticated but redirection hasn't happened yet
-  // You might want to show a loading state or nothing
+  // Render nothing or a loading indicator while redirecting
+  // Since redirection happens immediately in useEffect, returning null is fine.
+  // Or you could return a simple loading state:
+  // return <div>Loading...</div>;
   return null;
 }
