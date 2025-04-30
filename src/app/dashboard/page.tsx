@@ -82,27 +82,79 @@ const formatSuggestedDate = (dateField: unknown): string | null => {
     return null;
 }
 
+// Example Content Items
+const exampleContentItems: ContentItem[] = [
+    {
+        id: 'example-1',
+        title: 'Lanzamiento Nueva Web',
+        description: '¡Estamos emocionados de anunciar el lanzamiento de nuestra nueva página web! Visítala ahora.',
+        fileUrl: 'https://picsum.photos/seed/lanzamiento/400/300',
+        category: 'branding',
+        suggestedDate: '2024-08-15',
+        status: 'published',
+        comments: 'Post principal de la campaña de lanzamiento.',
+        createdAt: new Date('2024-07-10T10:00:00Z').toISOString(),
+        updatedAt: new Date('2024-07-12T15:30:00Z').toISOString(),
+    },
+    {
+        id: 'example-2',
+        title: 'Promo Verano 20% OFF',
+        description: 'Aprovecha nuestro descuento del 20% en todos los servicios durante el mes de agosto.',
+        fileUrl: 'https://picsum.photos/seed/promo/400/300',
+        category: 'promociones',
+        suggestedDate: '2024-08-01',
+        status: 'approved',
+        comments: 'Revisar copy final antes de publicar.',
+        createdAt: new Date('2024-07-20T09:00:00Z').toISOString(),
+        updatedAt: new Date('2024-07-25T11:00:00Z').toISOString(),
+    },
+    {
+        id: 'example-3',
+        title: 'Tip: Optimiza tu SEO Local',
+        description: 'Mejora tu visibilidad en búsquedas locales con estos 5 sencillos pasos.',
+        fileUrl: 'https://picsum.photos/seed/tip/400/300',
+        category: 'tips',
+        suggestedDate: '2024-08-22',
+        status: 'draft',
+        createdAt: new Date('2024-07-28T14:00:00Z').toISOString(),
+        updatedAt: new Date('2024-07-28T14:00:00Z').toISOString(),
+    },
+];
+
 
 const fetchContentItems = async (): Promise<ContentItem[]> => {
-  const contentCollection = collection(db, 'contentItems');
-  const contentSnapshot = await getDocs(contentCollection);
-  const contentList = contentSnapshot.docs.map(doc => {
-     const data = doc.data();
-     return {
-        id: doc.id,
-        title: data.title ?? '',
-        description: data.description,
-        fileUrl: data.fileUrl ?? '',
-        category: data.category ?? '',
-        // Safely format suggestedDate to YYYY-MM-DD string or null
-        suggestedDate: formatSuggestedDate(data.suggestedDate) ?? undefined,
-        status: data.status ?? 'draft',
-        comments: data.comments,
-        // Safely convert Timestamps to ISO strings or null
-        createdAt: timestampToISOString(data.createdAt),
-        updatedAt: timestampToISOString(data.updatedAt),
-     } as ContentItem; // Cast to ContentItem, TS might complain about potential nulls vs undefined, adjust type if needed
-  });
+  let contentList: ContentItem[] = [];
+  try {
+      const contentCollection = collection(db, 'contentItems');
+      const contentSnapshot = await getDocs(contentCollection);
+      contentList = contentSnapshot.docs.map(doc => {
+         const data = doc.data();
+         return {
+            id: doc.id,
+            title: data.title ?? '',
+            description: data.description,
+            fileUrl: data.fileUrl ?? '',
+            category: data.category ?? '',
+            // Safely format suggestedDate to YYYY-MM-DD string or null
+            suggestedDate: formatSuggestedDate(data.suggestedDate) ?? undefined,
+            status: data.status ?? 'draft',
+            comments: data.comments,
+            // Safely convert Timestamps to ISO strings or null
+            createdAt: timestampToISOString(data.createdAt),
+            updatedAt: timestampToISOString(data.updatedAt),
+         } as ContentItem; // Cast to ContentItem
+      });
+  } catch (error) {
+      console.error("Error fetching content from Firestore:", error);
+      // Optionally return empty or throw error, decided to proceed and add examples if empty
+  }
+
+
+  // If Firestore is empty or fetch failed, add example items
+  if (contentList.length === 0) {
+      console.log("No content found in Firestore, showing example items.");
+      contentList.push(...exampleContentItems);
+  }
 
   // Sort by suggestedDate descending (treat null/undefined dates as oldest)
   contentList.sort((a, b) => {
@@ -113,6 +165,7 @@ const fetchContentItems = async (): Promise<ContentItem[]> => {
     if (dateB === 0) return -1; // b is older (no date)
     return dateB - dateA; // Sort by date descending
   });
+
   return contentList;
 };
 
@@ -144,7 +197,9 @@ export default function DashboardPage(): ReactElement {
   }, [contentItems, filterCategory, filterStatus, searchTerm]);
 
   const categories = useMemo(() => {
-    const uniqueCategories = new Set(contentItems?.map(item => item.category).filter(Boolean) ?? []); // Filter out undefined/null categories
+    // Ensure examples are included if contentItems is initially empty
+    const allItems = contentItems?.length ? contentItems : exampleContentItems;
+    const uniqueCategories = new Set(allItems?.map(item => item.category).filter(Boolean) ?? []);
     const translatedCategories = Array.from(uniqueCategories).map(cat => ({
       value: cat,
       label: cat.charAt(0).toUpperCase() + cat.slice(1) // Simple capitalization
@@ -183,7 +238,8 @@ export default function DashboardPage(): ReactElement {
     </div>
   );
   // Display a specific error message if the query fails
-  if (error) return (
+  // Don't show error if it was just Firestore being empty and we fell back to examples
+  if (error && contentItems?.length === 0) return (
       <div className="container mx-auto py-8 text-center text-destructive">
         <h2 className="text-xl font-semibold mb-2">Error al cargar el contenido</h2>
         <p>No se pudo obtener la información de Firestore.</p>
@@ -192,8 +248,15 @@ export default function DashboardPage(): ReactElement {
       </div>
   );
 
- // Handle case where data is fetched but empty
- if (!isLoading && !error && !contentItems?.length) {
+ // Handle case where data is fetched but empty (this case is now handled by showing examples)
+ // We modify this to show the "no matching filters" message if applicable,
+ // or the generic "no content" message only if examples are somehow missing AND firestore empty.
+ // The primary "no content" message is now less likely due to examples.
+ if (!isLoading && !error && !filteredContentItems?.length && (searchTerm || filterCategory !== 'all' || filterStatus !== 'all')) {
+    // Show message only when filters are active and result is empty
+ } else if (!isLoading && !error && !contentItems?.length) {
+    // This case should ideally not be reached due to example data fallback,
+    // but included as a safeguard if examples were removed or fetchContentItems logic changes.
     return (
         <div className="container mx-auto py-8">
             <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
@@ -272,7 +335,7 @@ export default function DashboardPage(): ReactElement {
          <div className="text-center py-10 text-muted-foreground">
              {searchTerm || filterCategory !== 'all' || filterStatus !== 'all'
                  ? "No se encontraron elementos de contenido que coincidan con sus criterios de búsqueda o filtros."
-                 : "Aún no hay contenido para mostrar." // Message when no filters are applied and no items exist (handled above, but safe fallback)
+                 : "Aún no hay contenido para mostrar." // Fallback if examples failed AND Firestore empty
              }
          </div>
       )}
