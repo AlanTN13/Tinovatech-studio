@@ -22,6 +22,7 @@ import { es } from 'date-fns/locale'; // Import Spanish locale for date picker
 import { CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ContentItem } from '@/types/contentItem';
+import { exampleContentItems } from '@/data/exampleContent';
 
 
 // Define categories - could be fetched from Firestore in the future
@@ -125,41 +126,36 @@ const ContentForm: FC<ContentFormProps> = ({ initialData, isEditing = false, dup
 
   const watchedStatus = form.watch('status'); // Watch the status field
 
-   // Effect to fetch and populate data if duplicating
-   useEffect(() => {
-       const duplicateId = searchParams?.get('duplicateId');
-       if (duplicateId && !initialData && !isEditing) {
-           const fetchDuplicateData = async () => {
-               setIsLoadingDuplicate(true);
-               try {
-                   const docRef = doc(db, 'contentItems', duplicateId);
-                   const docSnap = await getDoc(docRef);
-                   if (docSnap.exists()) {
-                       const data = docSnap.data() as Omit<ContentItem, 'id'>;
-                       form.reset({
-                           title: `${data.title} (Copia)`,
-                           description: data.description || '',
-                           fileUrl: data.fileUrl || '',
-                           category: data.category || '',
-                           suggestedDate: undefined, // Reset date
-                           status: 'draft', // Reset status
-                           comments: data.comments || '', // Keep comments for reference? Or clear? Let's keep them for now.
-                       });
-                   } else {
-                       toast({ title: "Error", description: "Contenido original para duplicar no encontrado.", variant: "destructive" });
-                       router.replace('/dashboard/new'); // Remove query param if not found
-                   }
-               } catch (error) {
-                   console.error("Error fetching duplicate data:", error);
-                   toast({ title: "Error", description: "No se pudo cargar el contenido para duplicar.", variant: "destructive" });
-               } finally {
-                   setIsLoadingDuplicate(false);
-               }
-           };
-           fetchDuplicateData();
-       }
-   // eslint-disable-next-line react-hooks/exhaustive-deps
-   }, [searchParams, initialData, isEditing, form.reset, router, toast]); // Dependencies
+  // Effect to fetch and populate data if duplicating
+  useEffect(() => {
+    const duplicateId = searchParams?.get('duplicateId');
+    if (duplicateId && !initialData && !isEditing) {
+      setIsLoadingDuplicate(true);
+      try {
+        const found = exampleContentItems.find((item) => item.id === duplicateId);
+        if (found) {
+          form.reset({
+            title: `${found.title} (Copia)`,
+            description: found.description || '',
+            fileUrl: found.fileUrl || '',
+            category: found.category || '',
+            suggestedDate: undefined, // Reset date
+            status: 'draft', // Reset status
+            comments: found.comments || '',
+          });
+        } else {
+          toast({ title: 'Error', description: 'Contenido original para duplicar no encontrado.', variant: 'destructive' });
+          router.replace('/dashboard/new');
+        }
+      } catch (error) {
+        console.error('Error fetching duplicate data:', error);
+        toast({ title: 'Error', description: 'No se pudo cargar el contenido para duplicar.', variant: 'destructive' });
+      } finally {
+        setIsLoadingDuplicate(false);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, initialData, isEditing, form.reset, router, toast]); // Dependencies
 
    // Effect to reset form when initialData changes (e.g., navigating between edit pages)
    useEffect(() => {

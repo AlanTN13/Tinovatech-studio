@@ -34,7 +34,7 @@ Comentarios internos (opcional)
 
 Requisitos:
 
-El contenido debe guardarse en Firestore (no usar Firebase Storage)
+El contenido se almacena de forma local en memoria para esta demostración
 
 El archivo multimedia debe ser ingresado como un campo de tipo URL (de Google Drive)
 
