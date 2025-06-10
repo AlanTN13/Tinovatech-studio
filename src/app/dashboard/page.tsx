@@ -3,8 +3,7 @@
 import type { ReactElement } from 'react';
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { collection, getDocs, query, where, Timestamp } from 'firebase/firestore';
-import { db } from '@/firebase/config';
+// Firebase dependencies removed. Content is now served from local example data.
 import ContentCard from '@/components/content/ContentCard';
 import ContentListItem from '@/components/content/ContentListItem'; // Import List Item Component
 import { Button } from '@/components/ui/button';
@@ -15,43 +14,41 @@ import { Calendar } from '@/components/ui/calendar';
 import { PlusCircle, Search, CalendarIcon, X, LayoutGrid, List, FileDown } from 'lucide-react'; // Added LayoutGrid, List, FileDown
 import Link from 'next/link';
 import type { ContentItem } from '@/types/contentItem'; // Import the type
+import { exampleContentItems } from '@/data/exampleContent';
 import { Skeleton } from '@/components/ui/skeleton';
 import { format, parseISO, startOfDay, isSameDay } from 'date-fns'; // Import date-fns functions
 import { es } from 'date-fns/locale'; // Import Spanish locale
 import { cn } from '@/lib/utils';
 
-// Helper function to safely convert Firestore Timestamp to ISO string or return null
+// Helper function to safely convert various timestamp formats to ISO string
 const timestampToISOString = (timestamp: unknown): string | null => {
-  if (timestamp instanceof Timestamp) {
-    return timestamp.toDate().toISOString();
+  if (timestamp instanceof Date) {
+    return timestamp.toISOString();
   }
   if (typeof timestamp === 'string') {
-     try {
-       return new Date(timestamp).toISOString();
-     } catch (e) {
-       return null; // Invalid date string
-     }
+    const d = new Date(timestamp);
+    return isNaN(d.getTime()) ? null : d.toISOString();
   }
-  if (typeof timestamp === 'object' && timestamp !== null && 'seconds' in timestamp && 'nanoseconds' in timestamp && typeof timestamp.seconds === 'number' && typeof timestamp.nanoseconds === 'number') {
-      try {
-          return new Timestamp(timestamp.seconds, timestamp.nanoseconds).toDate().toISOString();
-      } catch (e) {
-          return null;
-      }
+  if (
+    typeof timestamp === 'object' &&
+    timestamp !== null &&
+    'seconds' in (timestamp as any) &&
+    typeof (timestamp as any).seconds === 'number'
+  ) {
+    const ms = (timestamp as any).seconds * 1000;
+    return new Date(ms).toISOString();
   }
-  return null; // Return null for undefined, null, or other types
+  return null;
 };
 
-// Helper function to safely convert Firestore Timestamp or Date string to YYYY-MM-DD or return null
+// Helper function to safely convert various date formats to YYYY-MM-DD
 const formatSuggestedDate = (dateField: unknown): string | null => {
     let date: Date | null = null;
-    if (dateField instanceof Timestamp) {
-        date = dateField.toDate();
-    } else if (typeof dateField === 'string') {
+    if (typeof dateField === 'string') {
         if (/^\d{4}-\d{2}-\d{2}$/.test(dateField)) {
              try {
                 date = new Date(dateField + 'T00:00:00Z');
-                 if (isNaN(date.getTime())) { date = null; }
+                if (isNaN(date.getTime())) { date = null; }
              } catch (e) { date = null; }
         } else {
              try {
@@ -72,96 +69,12 @@ const formatSuggestedDate = (dateField: unknown): string | null => {
     return null;
 }
 
-// Get today's date in YYYY-MM-DD format
-const today = new Date();
-const todayString = format(today, 'yyyy-MM-dd');
-
-
-// Example Content Items
-const exampleContentItems: ContentItem[] = [
-     {
-        id: 'example-4',
-        title: 'Campaña Hoy: Día del Programador',
-        description: '¡Feliz día a todos los desarrolladores! Código limpio y café fuerte.',
-        fileUrl: 'https://picsum.photos/seed/hoy/400/300',
-        category: 'campañas',
-        suggestedDate: todayString, // Use today's date
-        status: 'approved',
-        comments: 'Publicar a las 9 AM.',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-    },
-    {
-        id: 'example-1',
-        title: 'Lanzamiento Nueva Web',
-        description: '¡Estamos emocionados de anunciar el lanzamiento de nuestra nueva página web! Visítala ahora.',
-        fileUrl: 'https://picsum.photos/seed/lanzamiento/400/300',
-        category: 'branding',
-        suggestedDate: '2024-08-15',
-        status: 'published',
-        comments: 'Post principal de la campaña de lanzamiento.',
-        createdAt: new Date('2024-07-10T10:00:00Z').toISOString(),
-        updatedAt: new Date('2024-07-12T15:30:00Z').toISOString(),
-    },
-    {
-        id: 'example-2',
-        title: 'Promo Verano 20% OFF',
-        description: 'Aprovecha nuestro descuento del 20% en todos los servicios durante el mes de agosto.',
-        fileUrl: 'https://picsum.photos/seed/promo/400/300',
-        category: 'promociones',
-        suggestedDate: '2024-08-01',
-        status: 'approved',
-        comments: 'Revisar copy final antes de publicar.',
-        createdAt: new Date('2024-07-20T09:00:00Z').toISOString(),
-        updatedAt: new Date('2024-07-25T11:00:00Z').toISOString(),
-    },
-    {
-        id: 'example-3',
-        title: 'Tip: Optimiza tu SEO Local',
-        description: 'Mejora tu visibilidad en búsquedas locales con estos 5 sencillos pasos.',
-        fileUrl: 'https://picsum.photos/seed/tip/400/300',
-        category: 'tips',
-        suggestedDate: '2024-08-22',
-        status: 'draft',
-        createdAt: new Date('2024-07-28T14:00:00Z').toISOString(),
-        updatedAt: new Date('2024-07-28T14:00:00Z').toISOString(),
-    },
-
-];
+// Example content items are provided from '@/data/exampleContent'.
 
 
 const fetchContentItems = async (): Promise<ContentItem[]> => {
-  let contentList: ContentItem[] = [];
-  try {
-      const contentCollection = collection(db, 'contentItems');
-      const contentSnapshot = await getDocs(contentCollection);
-      contentList = contentSnapshot.docs.map(doc => {
-         const data = doc.data();
-         return {
-            id: doc.id,
-            title: data.title ?? '',
-            description: data.description,
-            fileUrl: data.fileUrl ?? '',
-            category: data.category ?? '',
-            suggestedDate: formatSuggestedDate(data.suggestedDate) ?? undefined,
-            status: data.status ?? 'draft',
-            comments: data.comments,
-            createdAt: timestampToISOString(data.createdAt),
-            updatedAt: timestampToISOString(data.updatedAt),
-         } as ContentItem;
-      });
-  } catch (error) {
-      console.error("Error fetching content from Firestore:", error);
-  }
-
-
-  // If Firestore is empty or fetch failed, add example items
-  if (contentList.length === 0) {
-      console.log("No content found in Firestore, showing example items.");
-      contentList.push(...exampleContentItems);
-  }
-
-  // Sort by suggestedDate descending (treat null/undefined dates as oldest)
+  // Return local example items sorted by suggested date
+  const contentList = [...exampleContentItems];
   contentList.sort((a, b) => {
     const dateA = a.suggestedDate ? parseISO(a.suggestedDate).getTime() : 0;
     const dateB = b.suggestedDate ? parseISO(b.suggestedDate).getTime() : 0;
@@ -170,7 +83,6 @@ const fetchContentItems = async (): Promise<ContentItem[]> => {
     if (dateB === 0) return -1;
     return dateB - dateA; // Sort by date descending
   });
-
   return contentList;
 };
 
@@ -270,7 +182,7 @@ export default function DashboardPage(): ReactElement {
   if (error && contentItems?.length === 0) return (
       <div className="container mx-auto py-8 text-center text-destructive">
         <h2 className="text-xl font-semibold mb-2">Error al cargar el contenido</h2>
-        <p>No se pudo obtener la información de Firestore.</p>
+        <p>No se pudo obtener la información.</p>
         <p className="text-sm mt-1">Detalles: {error.message}</p>
         <Button onClick={() => refetch()} className="mt-4">Reintentar</Button>
       </div>
@@ -446,8 +358,8 @@ export default function DashboardPage(): ReactElement {
       ) : (
          <div className="text-center py-10 text-muted-foreground">
              {searchTerm || filterCategory !== 'all' || filterStatus !== 'all' || filterDate
-                 ? "No se encontraron elementos que coincidan con sus filtros."
-                 : "Aún no hay contenido para mostrar." // Fallback if examples failed AND Firestore empty
+                ? "No se encontraron elementos que coincidan con sus filtros."
+                : "Aún no hay contenido para mostrar." // Fallback if no ejemplo items
              }
          </div>
       )}

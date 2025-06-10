@@ -6,8 +6,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useRouter, useSearchParams } from 'next/navigation'; // Import useSearchParams
-import { collection, addDoc, updateDoc, doc, serverTimestamp, Timestamp, getDoc } from 'firebase/firestore'; // Import getDoc
-import { db } from '@/firebase/config';
+// Firebase imports removed. Data persistence would be handled by your own backend.
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -213,31 +212,19 @@ const ContentForm: FC<ContentFormProps> = ({ initialData, isEditing = false, dup
 
 
       if (isEditing && initialData?.id) {
-        // Update existing document: add updatedAt
-         const dataToUpdate = {
-           ...dataToSaveBase,
-           updatedAt: serverTimestamp(),
-         };
-        const docRef = doc(db, 'contentItems', initialData.id);
-        await updateDoc(docRef, dataToUpdate);
+        // Update existing item locally (no persistence)
         toast({
           title: "Contenido Actualizado",
-          description: "El elemento de contenido ha sido actualizado exitosamente.",
+          description: "El elemento de contenido ha sido actualizado exitosamente (modo demostración).",
         });
       } else {
-         // Create new document: add createdAt and updatedAt
-         const dataToCreate = {
-           ...dataToSaveBase,
-           createdAt: serverTimestamp(), // Add createdAt timestamp only for new documents
-           updatedAt: serverTimestamp(),
-         };
-         await addDoc(collection(db, 'contentItems'), dataToCreate);
+        // Create new item locally
         toast({
           title: "Contenido Creado",
-          description: "El nuevo elemento de contenido ha sido creado exitosamente.",
+          description: "El nuevo elemento de contenido ha sido creado exitosamente (modo demostración).",
         });
       }
-      router.push('/dashboard'); // Redirect to dashboard after save/update
+      router.push('/dashboard');
       // router.refresh(); // Let react-query handle data refresh via invalidation or refetch on window focus
     } catch (error) {
       console.error("Error guardando contenido:", error);

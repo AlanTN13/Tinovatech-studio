@@ -3,19 +3,16 @@
 import type { ReactElement } from 'react';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { doc, getDoc, Timestamp } from 'firebase/firestore';
-import { db } from '@/firebase/config';
+import { exampleContentItems } from '@/data/exampleContent';
 import ContentForm from '@/components/content/ContentForm';
 import type { ContentItem } from '@/types/contentItem'; // Import the type
 import { Skeleton } from "@/components/ui/skeleton";
 
-// Helper function to safely convert Firestore Timestamp or Date string to YYYY-MM-DD or return null
+// Helper function to safely convert various date formats to YYYY-MM-DD
 const formatSuggestedDate = (dateField: unknown): string | null => {
     let date: Date | null = null;
-    if (dateField instanceof Timestamp) {
-        date = dateField.toDate();
-    } else if (typeof dateField === 'string') {
-         // Handle 'YYYY-MM-DD' string directly or try parsing other date strings
+    if (typeof dateField === 'string') {
+        // Handle 'YYYY-MM-DD' string directly or try parsing other date strings
         if (/^\d{4}-\d{2}-\d{2}$/.test(dateField)) {
              try {
                  // Using UTC to be consistent when creating the Date object
@@ -57,37 +54,16 @@ export default function EditContentPage(): ReactElement {
         return;
     };
 
-    const fetchContentItem = async () => {
+    const fetchContentItem = () => {
       setLoading(true);
       setError(null);
-      try {
-        const docRef = doc(db, 'contentItems', id);
-        const docSnap = await getDoc(docRef);
-
-        if (docSnap.exists()) {
-            const rawData = docSnap.data();
-            const formattedData = {
-                id: docSnap.id,
-                title: rawData.title ?? '',
-                description: rawData.description,
-                fileUrl: rawData.fileUrl ?? '',
-                category: rawData.category ?? '',
-                suggestedDate: formatSuggestedDate(rawData.suggestedDate) ?? undefined, // Format to YYYY-MM-DD or undefined
-                status: rawData.status ?? 'draft',
-                comments: rawData.comments,
-                // createdAt/updatedAt are not typically needed for the form's initial data
-            } as ContentItem;
-            setInitialData(formattedData);
-        } else {
-          console.log('No such document!');
-          setError('Content item not found.');
-        }
-      } catch (err) {
-        console.error('Error fetching document:', err);
-        setError('Failed to load content item.');
-      } finally {
-        setLoading(false);
+      const found = exampleContentItems.find((item) => item.id === id);
+      if (found) {
+        setInitialData(found);
+      } else {
+        setError('Content item not found.');
       }
+      setLoading(false);
     };
 
     fetchContentItem();

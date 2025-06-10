@@ -2,10 +2,26 @@
 
 import type { ReactNode, FC } from 'react';
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import type { User } from 'firebase/auth';
-// Removed Firebase auth imports as they are bypassed
-// import { onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
-// import { auth } from '@/firebase/config';
+// Minimal user type used in place of Firebase auth User
+interface User {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+  emailVerified: boolean;
+  isAnonymous: boolean;
+  providerData: unknown[];
+  providerId: string;
+  metadata: {
+    creationTime: string;
+    lastSignInTime: string;
+  };
+  delete: () => Promise<void>;
+  getIdToken: () => Promise<string>;
+  getIdTokenResult: () => Promise<unknown>;
+  reload: () => Promise<void>;
+  toJSON: () => unknown;
+}
 
 // Mock user for development purposes when login is bypassed
 const mockUser: User = {
@@ -51,26 +67,7 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(mockUser);
   const [loading, setLoading] = useState(false); // Set loading to false immediately
 
-  // Removed useEffect with onAuthStateChanged listener
-  /*
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      if (currentUser && currentUser.email === 'ileana@example.com') { // Replace with actual allowed email
-        setUser(currentUser);
-      } else {
-        setUser(null);
-        // If a logged-in user's email is not allowed, sign them out.
-        if (currentUser) {
-          firebaseSignOut(auth);
-        }
-      }
-      setLoading(false);
-    });
-
-    // Cleanup subscription on unmount
-    return () => unsubscribe();
-  }, []);
-  */
+  // Authentication listener removed for demo mode
 
   // Mock signOut function - does nothing for auth, maybe logs out locally
   const signOut = async (): Promise<void> => {
